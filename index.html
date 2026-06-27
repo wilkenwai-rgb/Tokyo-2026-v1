@@ -55,7 +55,9 @@
       <div class="frame px-4 pt-2">
         <div class="flex items-center justify-between">
           <h1 class="text-lg font-semibold text-white drop-shadow-md">Tokyo & Atami Trip <span class="text-orange-400">🎆</span></h1>
-          <div class="text-xs text-white/90 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">1 JPY ≈ {{ (1 / rateHKDperJPY).toFixed(3) }} HKD</div>
+          <button @click="fetchGoogleSheetsData" class="text-xs font-medium text-white bg-green-600/80 hover:bg-green-600 px-3 py-1 rounded-full backdrop-blur-sm shadow flex items-center gap-1">
+            <span>🔄</span> {{ loading ? '同步中...' : '同步 XY 交叉矩陣' }}
+          </button>
         </div>
 
         <!-- Day chips -->
@@ -70,7 +72,7 @@
                       class="px-3 py-2 rounded-2xl border text-sm font-medium transition"
                       :class="activeDayIndex===d.index?'bg-orange-500 text-white border-orange-500 shadow-soft':'bg-white/90 text-winter-900 border-winter-200 hover:bg-white'">
                 <div class="text-[11px] opacity-80">Day {{ d.index+1 }}</div>
-                <div class="font-semibold">{{ d.dateStr.slice(8,10) }}</div>
+                <div class="font-semibold">{{ d.dateStr.slice(5,10) }}</div>
               </button>
             </div>
           </div>
@@ -85,249 +87,41 @@
         <div class="glass-dark rounded-2xl text-white shadow-soft p-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-base">✨</span>
+              <span class="text-base">📅</span>
               <div>
-                <div class="text-sm font-semibold">東京/熱海 · Day {{ activeDayIndex+1 }} · {{ activeDay.dateStr }}</div>
-                <div class="text-xs opacity-90">{{ weatherText || '備註：查看海上花火大會活動安排' }}</div>
+                <div class="text-sm font-semibold">當日焦點 · {{ activeDay.dateStr }}</div>
+                <div class="text-xs opacity-90">{{ weatherText || '已成功連接交叉定位調度表' }}</div>
               </div>
             </div>
-            <button @click="promptWeather('東京')" class="text-xs bg-white/20 border border-white/30 px-2 py-1 rounded-lg">編輯</button>
+            <button @click="promptWeather" class="text-xs bg-white/20 border border-white/30 px-2 py-1 rounded-lg">編輯</button>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
-          <div class="tag-title text-winter-900 text-sm font-bold">行程安排</div>
-          <button @click="openQuickAdd('schedule')" class="px-3 py-1.5 rounded-xl bg-orange-500 text-white text-sm shadow-card border border-orange-400">＋ 新增</button>
+          <div class="tag-title text-winter-900 text-sm font-bold">當日時間軸 (XY 交叉點)</div>
         </div>
 
-        <div class="space-y-2">
-          <div v-for="ev in dayEvents" :key="ev.id" class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
-            <div class="flex items-center justify-between">
-              <div class="font-semibold">{{ ev.title }}</div>
-              <button @click="removeEvent(ev.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
+        <div class="space-y-2.5">
+          <div v-for="ev in dayEvents" :key="ev.id" class="rounded-2xl bg-white/95 border border-winter-200 p-3 shadow-card flex items-center gap-4">
+            <div class="bg-indigo-950 text-indigo-300 font-mono text-sm font-bold tracking-wider px-3 py-1 rounded-xl shadow-sm text-center min-w-[65px]">
+              {{ ev.start }}
             </div>
-            <div class="text-xs text-winter-700 mt-1">{{ ev.start }} → {{ ev.end }}</div>
-          </div>
-          <div v-if="!dayEvents.length" class="text-sm text-white/90 bg-black/20 p-3 rounded-xl backdrop-blur-sm">尚未新增事件。可在下方選擇時段或使用「＋ 新增」。</div>
-        </div>
-
-        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
-          <div class="grid grid-cols-3 gap-2 mb-2">
-            <div>
-              <label class="text-xs text-winter-700">時段</label>
-              <select v-model="schedule.newEvent.start" class="mt-1 w-full rounded-lg border border-winter-200">
-                <option v-for="t in timeSlots" :value="t">{{ t }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs text-winter-700">時長</label>
-              <select v-model.number="schedule.newEvent.durationMins" class="mt-1 w-full rounded-lg border border-winter-200">
-                <option :value="30">30 分</option><option :value="60">60 分</option><option :value="90">90 分</option><option :value="120">120 分</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs text-winter-700">標題</label>
-              <input v-model="schedule.newEvent.title" placeholder="例如：熱海海上花火" class="mt-1 w-full rounded-lg border border-winter-200"/>
+            <div class="flex-1">
+              <div class="font-semibold text-winter-900 text-[15px]">{{ ev.title }}</div>
             </div>
           </div>
-          <div class="flex gap-2">
-            <button @click="addEvent" class="flex-1 rounded-xl bg-orange-500 text-white py-2 font-medium">加入行程</button>
-            <button @click="clearDayEvents" class="rounded-xl bg-white border border-winter-300 px-3">清空當日</button>
+          
+          <div v-if="!dayEvents.length" class="text-sm text-white/90 bg-black/20 p-6 rounded-2xl backdrop-blur-sm text-center">
+            📭 今日該欄位交叉點尚無安排。
           </div>
         </div>
       </section>
 
-      <!-- 地圖 (Map Pins) -->
-      <section v-show="activeTab==='map'" class="mt-6 space-y-4">
-        <div class="flex items-center justify-between">
-          <div class="tag-title text-winter-900 text-sm font-bold">地圖</div>
-          <button @click="openQuickAdd('map')" class="px-3 py-1.5 rounded-xl bg-orange-500 text-white text-sm shadow-card">＋ 新增</button>
-        </div>
-
-        <div class="space-y-3">
-          <div v-for="p in map.pins" :key="p.id" class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="font-semibold">{{ p.name }}</div>
-                <div class="text-xs text-winter-700">{{ p.category }} • {{ p.notes }}</div>
-              </div>
-              <button @click="removePin(p.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
-            </div>
-            <div class="mt-2 grid grid-cols-2 gap-2">
-              <a :href="mapsSearchUrl(p)" target="_blank" class="text-center text-xs py-1.5 bg-winter-100 hover:bg-winter-200 rounded-xl text-winter-900 font-medium">開啟地圖</a>
-              <a :href="mapsDirectionsUrl(p)" target="_blank" class="text-center text-xs py-1.5 bg-winter-100 hover:bg-winter-200 rounded-xl text-winter-900 font-medium">導航（步行）</a>
-            </div>
-          </div>
-          <div v-if="!map.pins.length" class="text-sm text-white/90 bg-black/20 p-3 rounded-xl backdrop-blur-sm">尚未建立景點 / 餐廳（東京/熱海）。</div>
-        </div>
-
-        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
-          <div class="grid grid-cols-1 gap-2">
-            <input v-model="map.newPin.name" placeholder="地點名稱（例：熱海親水公園）" class="rounded-lg border border-winter-200"/>
-            <input v-model="map.newPin.query" placeholder="搜尋字串或地址（例：Atami Water Park, Shizuoka, Japan）" class="rounded-lg border border-winter-200"/>
-            <div class="grid grid-cols-2 gap-2">
-              <select v-model="map.newPin.category" class="rounded-lg border border-winter-200">
-                <option>景點</option><option>美食</option><option>購物</option><option>交通</option>
-              </select>
-              <input v-model="map.newPin.notes" placeholder="備註（例：花火大會看台）" class="rounded-lg border border-winter-200"/>
-            </div>
-          </div>
-          <div class="mt-2 flex gap-2">
-            <button @click="addPin" class="flex-1 rounded-xl bg-orange-500 text-white py-2 font-medium">加入清單</button>
-            <button @click="clearPins" class="rounded-xl bg-white border border-winter-300 px-3">全部清除</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 記帳 (Budget) -->
-      <section v-show="activeTab==='budget'" class="mt-6 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">旅費管理</div>
-        <div class="rounded-2xl p-5 shadow-soft glass-dark text-white">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-xs opacity-90">總支出（HKD）</div>
-              <div class="text-4xl font-bold leading-tight">$ {{ totalHKD.toFixed(0) }}</div>
-              <div class="text-xs opacity-90">日幣估計 ¥ {{ totalJPY.toFixed(0) }}</div>
-            </div>
-            <div class="text-right">
-              <div class="text-xs opacity-90">剩餘預算（HKD）</div>
-              <div class="text-2xl font-bold">{{ remainingHKD.toFixed(0) }}</div>
-              <div class="text-xs opacity-90">¥ {{ remainingJPY.toFixed(0) }}</div>
-            </div>
-          </div>
-          <div class="mt-4 border-t border-white/30 pt-3 grid grid-cols-2 gap-3 text-center">
-            <div>
-              <div class="text-xs opacity-90">💵 現金</div>
-              <div class="text-xl font-bold">HKD {{ paidByMethod.cash.toFixed(0) }}</div>
-            </div>
-            <div>
-              <div class="text-xs opacity-90">💳 信用卡</div>
-              <div class="text-xl font-bold">HKD {{ paidByMethod.card.toFixed(0) }}</div>
-            </div>
-          </div>
-          <div class="mt-4 border-t border-white/30 pt-3 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <div class="text-xs opacity-90">Ariel 支付</div>
-              <div class="text-lg font-bold">HKD {{ paidByPerson.Ariel.toFixed(0) }}</div>
-            </div>
-            <div>
-              <div class="text-xs opacity-90">Wilken 支付</div>
-              <div class="text-lg font-bold">HKD {{ paidByPerson.Wilken.toFixed(0) }}</div>
-            </div>
-            <div>
-              <div class="text-xs opacity-90">雙方分攤</div>
-              <div class="text-lg font-bold">HKD {{ paidByPerson.Both.toFixed(0) }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs text-winter-700">預算（HKD）</label>
-              <input type="number" v-model.number="budget.limitHKD" class="mt-1 w-full rounded-lg border border-winter-200"/>
-            </div>
-            <div>
-              <label class="text-xs text-winter-700">匯率（JPY／HKD）</label>
-              <input type="number" step="0.01" v-model.number="budget.rateJPYperHKD" class="mt-1 w-full rounded-lg border border-winter-200"/>
-            </div>
-          </div>
-          <hr class="my-3 border-winter-200"/>
-          <div class="grid grid-cols-1 gap-2">
-            <input v-model="budget.newItem.desc" placeholder="支出說明（例：花火觀光船）" class="rounded-lg border border-winter-200"/>
-            <div class="grid grid-cols-2 gap-2">
-              <input type="number" v-model.number="budget.newItem.hkd" @input="syncJPYFromHKD" placeholder="金額（HKD）" class="rounded-lg border border-winter-200"/>
-              <input type="number" v-model.number="budget.newItem.jpy" @input="syncHKDFromJPY" placeholder="金額（JPY）" class="rounded-lg border border-winter-200"/>
-            </div>
-            <div class="grid grid-cols-3 gap-2">
-              <select v-model="budget.newItem.category" class="rounded-lg border border-winter-200">
-                <option>交通</option><option>美食</option><option>購物</option><option>景點</option>
-              </select>
-              <select v-model="budget.newItem.method" class="rounded-lg border border-winter-200">
-                <option>現金</option><option>信用卡</option>
-              </select>
-              <select v-model="budget.newItem.paidBy" class="rounded-lg border border-winter-200">
-                <option>Ariel</option><option>Wilken</option><option>雙方（混合）</option>
-              </select>
-            </div>
-          </div>
-          <div class="mt-2 flex gap-2">
-            <button @click="addSpending" class="flex-1 rounded-xl bg-orange-500 text-white py-2 font-medium">＋ 記一筆</button>
-            <button @click="clearSpendings" class="rounded-xl bg-white border border-winter-300 px-3">清空</button>
-          </div>
-        </div>
-
-        <div class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
-          <h3 class="text-sm font-semibold mb-2">分類比例</h3>
-          <canvas id="categoryChart" height="160"></canvas>
-        </div>
-
-        <ul class="space-y-2">
-          <li v-for="sp in budget.items" :key="sp.id" class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
-            <div class="flex items-center justify-between">
-              <div class="font-semibold">{{ sp.desc }}</div>
-              <button @click="removeSpending(sp.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
-            </div>
-            <div class="text-xs text-winter-700 mt-1">
-              {{ sp.category }} • {{ sp.method }} • 金額：HKD {{ (sp.hkd||0).toFixed(2) }} • 付款：{{ sp.paidBy }}
-            </div>
-          </li>
-        </ul>
-      </section>
-
-      <!-- 購物 -->
-      <section v-show="activeTab==='shop'" class="mt-6 space-y-4">
-        <div class="flex items-center justify-between">
-          <div class="tag-title text-winter-900 text-sm font-bold">購物清單</div>
-        </div>
-        <div class="space-y-3">
-          <div v-for="it in shop.items" :key="it.id" class="rounded-2xl bg-white/92 border border-winter-200 p-3 shadow-card">
-            <div class="flex flex-col">
-              <div class="font-semibold">{{ it.text }}</div>
-              <div class="text-xs text-winter-700">{{ it.where || '—' }}</div>
-              <div class="text-sm font-medium mt-1">¥{{ (it.priceJPY||0).toFixed(0) }}</div>
-            </div>
-            <div class="mt-2 flex items-center justify-between">
-              <label class="flex items-center gap-2 text-sm">
-                <input type="checkbox" v-model="it.checked" class="rounded"/> 已勾選
-              </label>
-              <button @click="removeShopItem(it.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
-            </div>
-          </div>
-        </div>
-        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
-          <div class="grid grid-cols-1 gap-2">
-            <input v-model="shop.newItem.text" placeholder="項目" class="rounded-lg border border-winter-200"/>
-            <div class="grid grid-cols-2 gap-2">
-              <input v-model="shop.newItem.where" placeholder="購買地點" class="rounded-lg border border-winter-200"/>
-              <input type="number" v-model.number="shop.newItem.priceJPY" placeholder="價格" class="rounded-lg border border-winter-200"/>
-            </div>
-          </div>
-          <button @click="addShopItem" class="w-full mt-2 rounded-xl bg-orange-500 text-white py-2 font-medium">加入清單</button>
-        </div>
-      </section>
-
-      <!-- 資訊（打包） -->
-      <section v-show="activeTab==='info'" class="mt-6 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">行前清單</div>
-        <ul class="space-y-2">
-          <li v-for="it in pack.items" :key="it.id" class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" v-model="it.checked" class="rounded"/>
-              <span :class="it.checked ? 'line-through text-winter-700' : ''">{{ it.text }} ({{ it.who }})</span>
-            </label>
-          </li>
-        </ul>
-        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
-          <div class="grid grid-cols-2 gap-2">
-            <input v-model="pack.newItem.text" placeholder="項目" class="rounded-lg border border-winter-200"/>
-            <select v-model="pack.newItem.who" class="rounded-lg border border-winter-200">
-              <option>Ariel</option><option>Wilken</option>
-            </select>
-          </div>
-          <button @click="addPackItem" class="w-full mt-2 rounded-xl bg-orange-500 text-white py-2 font-medium">加入清單</button>
-        </div>
-      </section>
+      <!-- Structural fallbacks for other menus -->
+      <section v-show="activeTab==='map'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">📍 地圖與景點收藏</section>
+      <section v-show="activeTab==='budget'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">💰 記帳帳目管理</section>
+      <section v-show="activeTab==='shop'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">🛍️ 購物清單清單</section>
+      <section v-show="activeTab==='info'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">ℹ️ 隨身打包物資</section>
     </main>
 
     <!-- Bottom Nav -->
@@ -345,22 +139,19 @@
   </div>
 
   <script>
-    const { createApp, computed, watch } = Vue;
+    const { createApp } = Vue;
     createApp({
       data(){
         return {
-          activeTab:'schedule', tripStart:new Date(), tripDays:5, activeDayIndex:0, weatherText:'',
-          schedule:{ newEvent:{ start:'09:00', durationMins:60, title:'' }, eventsByDate:{} },
-          map:{ newPin:{ name:'', query:'Atami, Japan', category:'景點', notes:'' }, pins:[{ id:crypto.randomUUID(), name:'熱海親水公園', query:'Atami Water Park, Shizuoka', category:'景點', notes:'花火觀看特等席' }] },
-          budget:{ rateJPYperHKD:18.0, limitHKD:5000, newItem:{ desc:'', hkd:null, jpy:null, category:'美食', method:'現金', paidBy:'Ariel', splitHKD:{ Ariel:null, Wilken:null } }, items:[] },
-          shop:{ newItem:{ text:'', where:'', priceJPY:null, photo:null }, items:[] },
-          pack:{ newItem:{ text:'', who:'Ariel' }, items:[] },
-          chart:null
+          activeTab:'schedule', tripStart:new Date('2026-07-01'), tripDays:5, activeDayIndex:0, weatherText:'',
+          loading: false,
+          // ⚠️ 填入你的 Google Sheet ID 序號
+          sheetId: '1EohSpcEyr66Au6imdd3UntlJqVPeW4l4_DHwa0Gaqeg', 
+          schedule:{ eventsByDate:{} },
+          map:{ pins:[] }, budget:{ rateJPYperHKD:18.0, items:[] }, shop:{ items:[] }, pack:{ items:[] }
         }
       },
       computed:{
-        rateHKDperJPY(){ return 1/(this.budget.rateJPYperHKD||1); },
-        rateJPYperHKD(){ return this.budget.rateJPYperHKD||1; },
         days(){
           const arr=[]; for(let i=0;i<this.tripDays;i++){
             const d=new Date(this.tripStart.getFullYear(),this.tripStart.getMonth(),this.tripStart.getDate()+i);
@@ -369,63 +160,81 @@
           return arr;
         },
         activeDay(){ return this.days[this.activeDayIndex]; },
-        timeSlots(){
-          const out=[]; for(let h=6;h<=23;h++){ out.push(`${String(h).padStart(2,'0')}:00`); if(h!==23) out.push(`${String(h).padStart(2,'0')}:30`); }
-          return out;
-        },
-        dayEvents(){ const list=this.schedule.eventsByDate[this.activeDay.key]||[]; return list.slice().sort((a,b)=>a.start.localeCompare(b.start)); },
-        totalHKD(){ return this.budget.items.reduce((s,x)=> s+(x.hkd||0), 0); },
-        totalJPY(){ return this.totalHKD * this.rateJPYperHKD; },
-        remainingHKD(){ return Math.max(0,(this.budget.limitHKD||0) - this.totalHKD); },
-        remainingJPY(){ return this.remainingHKD * this.rateJPYperHKD; },
-        paidByMethod(){
-          const c={ cash:0, card:0 }; for(const x of this.budget.items){ if(x.method==='現金') c.cash += x.hkd||0; else if(x.method==='信用卡') c.card += x.hkd||0; } return c;
-        },
-        paidByPerson(){
-          let Ariel=0, Wilken=0, Both=0; for(const x of this.budget.items){ if(x.paidBy==='Ariel') Ariel += x.hkd||0; else if(x.paidBy==='Wilken') Wilken += x.hkd||0; else Both += x.hkd||0; } return { Ariel, Wilken, Both };
+        dayEvents(){ 
+          const list = this.schedule.eventsByDate[this.activeDay.key] || []; 
+          return list.slice().sort((a,b)=>a.start.localeCompare(b.start)); 
         }
       },
       methods:{
-        promptWeather(defaultCity){ const t = prompt('輸入天氣備註（例如：熱海花火大會 20:20 施放）', this.weatherText || ''); if(t!==null){ this.weatherText = t; this.save(); } },
-        addEvent(){
-          const s=this.schedule.newEvent; if(!s.title) return alert('請輸入標題');
-          const end=this.addMinutes(s.start,s.durationMins);
-          const ev={ id:crypto.randomUUID(), start:s.start, end, title:s.title };
-          const key=this.activeDay.key; const list=this.schedule.eventsByDate[key]||[]; list.push(ev);
-          this.schedule.eventsByDate[key]=list; this.schedule.newEvent.title=''; this.save();
+        promptWeather(){ const t = prompt('輸入天氣/活動備註', this.weatherText); if(t!==null) this.weatherText = t; },
+        async fetchGoogleSheetsData() {
+          if (!this.sheetId || this.sheetId.includes('YOUR_SPREADSHEET_ID')) {
+            alert('請先在程式碼第 189 行填入您的 Google Sheet ID！');
+            return;
+          }
+          this.loading = true;
+          const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Schedule`;
+          
+          try {
+            const res = await fetch(url);
+            const text = await res.text();
+            this.parseGridPivotMatrix(text);
+          } catch (err) {
+            console.error(err);
+            alert('讀取失敗，請確認雲端硬碟內該 Sheet 是否已設為「知道連結的人均可查看觀看」。');
+          } finally {
+            this.loading = false;
+          }
         },
-        removeEvent(id){ const key=this.activeDay.key; const list=this.schedule.eventsByDate[key]||[]; this.schedule.eventsByDate[key]=list.filter(x=>x.id!==id); this.save(); },
-        clearDayEvents(){ this.schedule.eventsByDate[this.activeDay.key]=[]; this.save(); },
-        addMinutes(t,m){ const [h,mm]=t.split(':').map(Number); const base=new Date(0,0,0,h,mm); const end=new Date(base.getTime()+m*60000); return `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`; },
-        addPin(){
-          const n=this.map.newPin; if(!n.name || !n.query) return alert('請輸入名稱與搜尋字串');
-          this.map.pins.push({ id:crypto.randomUUID(), ...n }); this.map.newPin={ name:'', query:'Atami, Japan', category:'景點', notes:'' }; this.save();
-        },
-        removePin(id){ this.map.pins=this.map.pins.filter(p=>p.id!==id); this.save(); },
-        clearPins(){ this.map.pins=[]; this.save(); },
-        mapsSearchUrl(p){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.query || p.name)}`; },
-        mapsDirectionsUrl(p){ return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.query || p.name)}&travelmode=walking`; },
-        syncJPYFromHKD(){ this.budget.newItem.jpy=Number(this.budget.newItem.hkd||0)*this.rateJPYperHKD; },
-        syncHKDFromJPY(){ this.budget.newItem.hkd=Number(this.budget.newItem.jpy||0)/this.rateJPYperHKD; },
-        addSpending(){
-          const x=this.budget.newItem; if(!x.desc) return alert('請輸入說明');
-          const hkd = Number(x.hkd || (x.jpy||0)/this.rateJPYperHKD); if(hkd<=0) return alert('請輸入金額');
-          this.budget.items.push({ id:crypto.randomUUID(), desc:x.desc, hkd, jpy:hkd*this.rateJPYperHKD, category:x.category, method:x.method, paidBy:x.paidBy });
-          this.budget.newItem={ desc:'', hkd:null, jpy:null, category:'美食', method:'現金', paidBy:'Ariel', splitHKD:{ Ariel:null, Wilken:null } }; this.save(); this.updateChart();
-        },
-        removeSpending(id){ this.budget.items=this.budget.items.filter(s=>s.id!==id); this.save(); this.updateChart(); },
-        clearSpendings(){ this.budget.items=[]; this.save(); this.updateChart(); },
-        addShopItem(){ const it=this.shop.newItem; if(!it.text) return alert('請輸入項目'); this.shop.items.push({ id:crypto.randomUUID(), text:it.text, where:it.where, priceJPY:it.priceJPY, checked:false }); this.shop.newItem={ text:'', where:'', priceJPY:null }; this.save(); },
-        removeShopItem(id){ this.shop.items=this.shop.items.filter(x=>x.id!==id); this.save(); },
-        addPackItem(){ const it=this.pack.newItem; if(!it.text) return alert('請輸入項目'); this.pack.items.push({ id:crypto.randomUUID(), text:it.text, who:it.who, checked:false }); this.pack.newItem={ text:'', who:'Ariel' }; this.save(); },
-        save(){ localStorage.setItem('tokyoTripPlannerV3', JSON.stringify({ schedule:this.schedule, map:this.map, budget:this.budget, shop:this.shop, pack:this.pack, weatherText:this.weatherText })); },
-        load(){ const raw=localStorage.getItem('tokyoTripPlannerV3'); if(!raw) return; try{ const d=JSON.parse(raw); this.schedule=d.schedule||this.schedule; this.map=d.map||this.map; this.budget=d.budget||this.budget; this.shop=d.shop||this.shop; this.pack=d.pack||this.pack; this.weatherText=d.weatherText||''; }catch{} },
-        initChart(){ const ctx=document.getElementById('categoryChart'); if(!ctx) return; this.chart=new Chart(ctx,{ type:'pie', data:{ labels:['交通','美食','購物','景點'], datasets:[{ data:this.categoryTotals(), backgroundColor:['#f97316','#f59e0b','#3b82f6','#10b981'], borderColor:'#fff', borderWidth:2 }] }, options:{ plugins:{ legend:{ position:'bottom', labels: { color: '#fff' } } } } }); },
-        updateChart(){ if(this.chart){ this.chart.data.datasets[0].data=this.categoryTotals(); this.chart.update(); } },
-        categoryTotals(){ const m={'交通':0,'美食':0,'購物':0,'景點':0}; for(const x of this.budget.items){ if(m[x.category]!==undefined) m[x.category]+=x.hkd||0; } return [m['交通'],m['美食'],m['購物'],m['景點']]; },
-        openQuickAdd(area){ this.activeTab= area==='schedule'?'schedule' : area==='map'?'map' : area==='shop'?'shop' : 'info'; }
+        parseGridPivotMatrix(csvText) {
+          const lines = csvText.split('\n').map(line => line.replace(/^"|"$/g, '').split('","'));
+          if (lines.length === 0) return;
+          
+          // Row 1 (Index 0) gives us the Date Columns starting from B1 (index 1)
+          const headerRow = lines[0];
+          const dates = [];
+          for (let col = 1; col < headerRow.length; col++) {
+            const dateStr = headerRow[col] ? headerRow[col].trim() : '';
+            if (!dateStr) break; // Break if no more columns/dates are populated
+            dates.push(dateStr);
+          }
+          
+          const newEvents = {};
+          dates.forEach(d => { newEvents[d] = []; });
+          
+          // Times start down at Row 5 (Index 4)
+          for (let i = 4; i < lines.length; i++) {
+            const row = lines[i];
+            if (!row || row.length === 0) continue;
+            
+            const timeSlot = row[0] ? row[0].trim() : '';
+            if (!timeSlot) break; // Break row sequence if Time column is empty
+            
+            // Look down the columns matching our populated dates
+            for (let dIdx = 0; dIdx < dates.length; dIdx++) {
+              const colIdx = dIdx + 1; // offset by 1 because Column A is our time array
+              const eventTitle = row[colIdx] ? row[colIdx].trim() : '';
+              
+              if (eventTitle) {
+                const targetDateKey = dates[dIdx];
+                newEvents[targetDateKey].push({
+                  id: crypto.randomUUID(),
+                  start: timeSlot,
+                  title: eventTitle
+                });
+              }
+            }
+          }
+          
+          this.schedule.eventsByDate = newEvents;
+          localStorage.setItem('tokyo_pivot_cache', JSON.stringify(newEvents));
+        }
       },
-      mounted(){ this.load(); this.$nextTick(()=>{ this.initChart(); this.updateChart(); }); }
+      mounted(){
+        const cache = localStorage.getItem('tokyo_pivot_cache');
+        if (cache) this.schedule.eventsByDate = JSON.parse(cache);
+        this.fetchGoogleSheetsData();
+      }
     }).mount('#app');
   </script>
 </body>

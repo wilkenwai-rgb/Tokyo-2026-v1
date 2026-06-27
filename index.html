@@ -105,9 +105,9 @@
         </div>
       </section>
 
-      <!-- MAP SECTION -->
+      <!-- MAP SECTION (CONVERTED & RESPONSIVE) -->
       <section v-show="activeTab==='map'" class="mt-4 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">東京 / 熱海全行程景點全圖集</div>
+        <div class="tag-title text-winter-900 text-sm font-bold">東京全區行程景點導航圖</div>
         <div class="w-full rounded-2xl overflow-hidden shadow-soft border-2 border-white/20 h-[68vh] bg-gray-900">
           <iframe 
             src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d114389.92004246944!2d139.6382544!3d35.6559858!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1zhant!2shk!4v1719530000000!5m2!1zhant!2shk" 
@@ -121,12 +121,12 @@
 
       <!-- BUDGET SECTION -->
       <section v-show="activeTab==='budget'" class="mt-4 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">本地持久化記帳分流表 (不受刷新影響)</div>
+        <div class="tag-title text-winter-900 text-sm font-bold">持久化本地記帳本</div>
         
         <div class="rounded-2xl p-4 shadow-soft glass-dark text-white space-y-3">
           <div class="flex items-center justify-between border-b border-white/20 pb-2">
             <div>
-              <div class="text-[10px] opacity-80 uppercase tracking-wider">總累計支出 (HKD 對齊)</div>
+              <div class="text-[10px] opacity-80 uppercase tracking-wider">總累計支出 (HKD)</div>
               <div class="text-3xl font-black font-mono text-orange-400">$ {{ totalHKD.toFixed(2) }}</div>
             </div>
             <div class="text-right">
@@ -136,7 +136,7 @@
           </div>
           
           <div class="text-[11px] bg-white/10 px-3 py-1.5 rounded-lg flex justify-between items-center text-emerald-300">
-            <span>📈 即時匯率 (Open-API 監測)</span>
+            <span>📈 即時牌告匯率</span>
             <span class="font-mono font-bold">1 JPY = {{ currentFXRate.toFixed(5) }} HKD</span>
           </div>
 
@@ -152,11 +152,11 @@
           </div>
         </div>
 
-        <!-- NEWLY ADDED: QUICK EXPENSE ADD INPUT BLOCK -->
+        <!-- ADD BUDGET BUTTON BLOCK -->
         <div class="rounded-2xl bg-white/95 border border-winter-200 p-4 shadow-card space-y-3">
-          <div class="text-xs font-bold text-winter-800 flex items-center gap-1">✨ <span>➕ 記錄一筆非預期新花費</span></div>
+          <div class="text-xs font-bold text-winter-800 flex items-center gap-1">➕ <span>記錄一筆新花費</span></div>
           <div class="grid grid-cols-2 gap-2">
-            <input v-model="formExpense.desc" type="text" placeholder="品項名稱 (如: 壽司)" class="p-2 border border-winter-200 rounded-xl text-xs bg-gray-50/50">
+            <input v-model="formExpense.desc" type="text" placeholder="品項名稱 (如: 居酒屋)" class="p-2 border border-winter-200 rounded-xl text-xs bg-gray-50/50">
             <input v-model.number="formExpense.jpy" type="number" placeholder="日幣金額 (¥)" class="p-2 border border-winter-200 rounded-xl text-xs bg-gray-50/50">
             <select v-model="formExpense.category" class="p-2 border border-winter-200 rounded-xl text-xs bg-gray-50/50">
               <option value="美食">🍱 美食</option>
@@ -171,19 +171,19 @@
             </select>
           </div>
           <button @click="addExpenseItem" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 rounded-xl text-xs shadow transition">
-            儲存並加載至統計圖表
+            儲存花費並更新圖表
           </button>
         </div>
 
-        <!-- VISUAL PIE CHART -->
+        <!-- PIE CHART CONTAINER -->
         <div class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
-          <h3 class="text-xs font-bold mb-2 text-winter-800">支出分類比例統計 (Pie Chart 實時權重)</h3>
+          <h3 class="text-xs font-bold mb-2 text-winter-800">支出分類比例統計 (Pie Chart)</h3>
           <div class="relative max-h-[140px] flex justify-center">
             <canvas id="categoryChart" style="max-height:140px; max-width:100%;"></canvas>
           </div>
         </div>
 
-        <!-- FIXED: ENFORCED SCROLLABLE CONTAINER TO PREVENT EXTENDING INFINITELY -->
+        <!-- FIXED SCROLLABLE BILLING LIST -->
         <div class="max-h-[30vh] overflow-y-auto space-y-2 pr-1 hide-scroll border-t border-dashed border-white/20 pt-2">
           <div v-for="sp in budgetItems" :key="sp.id" class="rounded-xl bg-white/95 border border-winter-200 p-3 shadow-sm flex justify-between items-center">
             <div>
@@ -199,22 +199,20 @@
             </div>
           </div>
           <div v-if="!budgetItems.length" class="text-sm text-white/90 bg-black/20 p-4 rounded-xl text-center">
-            📭 本地數據暫無新花費，請於上方欄位新增。
+            📭 目前暫無花費紀錄，請在上方新增。
           </div>
         </div>
       </section>
 
-      <!-- LOG BACKUP DATA CENTER -->
+      <!-- LOG DATA BACKUP -->
       <section v-show="activeTab==='info'" class="mt-4 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">全終端整合數據備份中心</div>
-        
+        <div class="tag-title text-winter-900 text-sm font-bold">整合數據備份中心</div>
         <div class="rounded-2xl bg-white/95 border border-winter-200 p-4 shadow-card text-center space-y-3">
           <div class="text-3xl">📊</div>
           <div>
             <h4 class="font-bold text-base text-winter-900">導出整合式明細日誌</h4>
-            <p class="text-xs text-winter-600 mt-1">一鍵將雲端同步的 Matrix 日誌與本地獨立儲存的隨手帳金流合併封裝，生成標準 Excel (.xlsx) 檔案保存。</p>
+            <p class="text-xs text-winter-600 mt-1">一鍵將雲端同步的 Matrix 日誌與本地隨手帳金流合併封裝，生成標準 Excel 檔案保存。</p>
           </div>
-          
           <button @click="exportToExcelFormat" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 text-sm">
             <span>💾</span> 下載 Excel 完整資料日誌
           </button>
@@ -248,7 +246,7 @@
           budgetItems: [],
           formExpense: { desc: '', jpy: null, category: '美食', paidBy: '雙方分攤' },
           currentFXRate: 0.0515, 
-          weather: { temp: '24', desc: '微陰/涼爽', icon: '⛅' },
+          weather: { temp: '26', desc: '微陰/舒適', icon: '⛅' },
           chart: null
         }
       },
@@ -293,7 +291,7 @@
               this.currentFXRate = data.rates.HKD;
               this.recalculateHKD();
             }
-          } catch (e) { console.error("FX Tracking active fallback.", e); }
+          } catch (e) { console.error("FX fallback safe.", e); }
         },
         async fetchGoogleSheetsSchedule() {
           const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Schedule`;
@@ -342,9 +340,8 @@
           const matrix = {};
           this.days.forEach(d => {
             matrix[d] = [
-              { id: '1', start: '09:00', title: '東京站/熱海特急乘車準備' },
-              { id: '2', start: '12:30', title: '熱海海鮮料理體驗大會' },
-              { id: '3', start: '19:45', title: '熱海海風花火大會觀賞點佔位' }
+              { id: '1', start: '09:30', title: '涉谷車流考察與景點拍照' },
+              { id: '2', start: '13:00', title: '東京限定美食探店行程' }
             ];
           });
           this.schedule.eventsByDate = matrix;
@@ -355,9 +352,8 @@
             this.budgetItems = JSON.parse(stored);
           } else {
             this.budgetItems = [
-              { id: 'b1', desc: '新幹線特急來回票', jpy: 17000, hkd: 17000 * this.currentFXRate, category: '交通', paidBy: '雙方分攤', method: 'Local' },
-              { id: 'b2', desc: '熱海溫泉旅館一泊二食', jpy: 42000, hkd: 42000 * this.currentFXRate, category: '景點', paidBy: 'Wilken', method: 'Local' },
-              { id: 'b3', desc: '磯丸水產海鮮燒烤餐', jpy: 8500, hkd: 8500 * this.currentFXRate, category: '美食', paidBy: 'Ariel', method: 'Local' }
+              { id: 'b1', desc: '新幹線特急來回票', jpy: 16800, hkd: 16800 * this.currentFXRate, category: '交通', paidBy: '雙方分攤', method: '初始預設' },
+              { id: 'b2', desc: '精緻燒肉晚餐', jpy: 12000, hkd: 12000 * this.currentFXRate, category: '美食', paidBy: 'Wilken', method: '初始預設' }
             ];
             this.saveLocalExpenses();
           }
@@ -367,14 +363,12 @@
           localStorage.setItem('tokyo_2026_billing', JSON.stringify(this.budgetItems));
         },
         recalculateHKD() {
-          this.budgetItems.forEach(item => {
-            item.hkd = item.jpy * this.currentFXRate;
-          });
+          this.budgetItems.forEach(item => { item.hkd = item.jpy * this.currentFXRate; });
           this.saveLocalExpenses();
         },
         addExpenseItem() {
           if (!this.formExpense.desc || !this.formExpense.jpy) {
-            alert('請完整填寫消費品項描述與正確的日幣金額！');
+            alert('請填寫完整項目描述與金額！');
             return;
           }
           const newItem = {
@@ -400,7 +394,6 @@
         },
         exportToExcelFormat() {
           const workbook = XLSX.utils.book_new();
-          
           const flatSchedule = [];
           Object.keys(this.schedule.eventsByDate).forEach(date => {
             this.schedule.eventsByDate[date].forEach(ev => {
@@ -411,24 +404,22 @@
           XLSX.utils.book_append_sheet(workbook, wsSchedule, "行程日誌整合備份");
           
           const financialLedger = this.budgetItems.map(x => ({
-            "本地記帳品項": x.desc,
+            "記帳品項": x.desc,
             "日幣金額 (JPY)": x.jpy,
-            "實時港幣對齊 (HKD)": parseFloat(x.hkd.toFixed(2)),
+            "港幣換算 (HKD)": parseFloat(x.hkd.toFixed(2)),
             "花費分類": x.category,
-            "代墊付款責任人": x.paidBy,
-            "紀錄渠道": x.method
+            "代墊付款人": x.paidBy,
+            "紀錄管道": x.method
           }));
           const wsExpenses = XLSX.utils.json_to_sheet(financialLedger);
           XLSX.utils.book_append_sheet(workbook, wsExpenses, "金流分流明細");
           
-          XLSX.writeFile(workbook, `Tokyo_Atami_Persistent_Log_2026.xlsx`);
+          XLSX.writeFile(workbook, `Tokyo_Trip_Persistent_Log_2026.xlsx`);
         },
         initChart() {
           const ctx = document.getElementById('categoryChart');
           if (!ctx) return;
-          if (this.chart) {
-            this.chart.destroy();
-          }
+          if (this.chart) this.chart.destroy();
           this.chart = new Chart(ctx, {
             type: 'pie',
             data: {
@@ -441,14 +432,8 @@
               }]
             },
             options: {
-              plugins: { 
-                legend: { 
-                  position: 'right', 
-                  labels: { color: '#fff', font: { size: 11 } } 
-                } 
-              },
-              responsive: true, 
-              maintainAspectRatio: false
+              plugins: { legend: { position: 'right', labels: { color: '#fff', font: { size: 11 } } } },
+              responsive: true, maintainAspectRatio: false
             }
           });
         },

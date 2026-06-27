@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="theme-color" content="#1e293b"/>
+  <meta name="theme-color" content="#0b1329"/>
   <title>Tokyo & Atami Trip 2026</title>
 
   <!-- Tailwind CSS -->
@@ -24,22 +24,20 @@
     }
   </script>
 
-  <!-- Vue & Chart.js -->
+  <!-- Vue 3, Chart.js, SheetJS (Excel exporter) -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
     :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
     html,body{height:100%}
-    body{
-      background-color: #0b1329;
-      -webkit-font-smoothing: antialiased;
-    }
+    body{ background-color: #0b1329; -webkit-font-smoothing: antialiased; }
     .bg-mount{position:fixed; inset:0; z-index:-1; opacity:.85;
       background-image:url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=1600&auto=format&fit=crop');
       background-size:cover; background-position:center; filter:brightness(0.95) saturate(110%);}
     .glass{background:rgba(255,255,255,.28); backdrop-filter:blur(16px) saturate(115%);}
-    .glass-dark{background:rgba(15, 23, 42, 0.45); backdrop-filter:blur(16px) saturate(120%); border: 1px solid rgba(255,255,255,0.1);}
+    .glass-dark{background:rgba(15, 23, 42, 0.55); backdrop-filter:blur(16px) saturate(120%); border: 1px solid rgba(255,255,255,0.15);}
     .tag-title{display:inline-block; padding:.35rem .7rem; border-radius:.75rem; background:#fff; box-shadow:0 6px 14px rgba(0,0,0,.08);}
     .hide-scroll::-webkit-scrollbar{display:none} .hide-scroll{scrollbar-width:none}
     .safe-top{padding-top:var(--safe-top)} .safe-bottom{padding-bottom:var(--safe-bottom)}
@@ -54,25 +52,22 @@
     <header class="safe-top">
       <div class="frame px-4 pt-2">
         <div class="flex items-center justify-between">
-          <h1 class="text-lg font-semibold text-white drop-shadow-md">Tokyo & Atami Trip <span class="text-orange-400">🎆</span></h1>
-          <button @click="fetchGoogleSheetsData" class="text-xs font-medium text-white bg-green-600/80 hover:bg-green-600 px-3 py-1 rounded-full backdrop-blur-sm shadow flex items-center gap-1">
-            <span>🔄</span> {{ loading ? '同步中...' : '同步 XY 交叉矩陣' }}
+          <h1 class="text-lg font-semibold text-white drop-shadow-md">Tokyo & Atami 2026 <span class="text-orange-400">🎆</span></h1>
+          <button @click="syncAllData" class="text-xs font-medium text-white bg-green-600/90 hover:bg-green-600 px-3 py-1.5 rounded-full shadow flex items-center gap-1 transition">
+            <span>🔄</span> {{ loading ? '同步中...' : '快連同步雲端' }}
           </button>
         </div>
 
-        <!-- Day chips -->
+        <!-- Day chips automatically referencing spreadsheet headings -->
         <div class="mt-3 flex items-center gap-2">
-          <button class="rounded-xl px-3 py-2 text-sm font-medium shadow-card bg-white text-winter-800 border border-winter-200">
-            行程
-          </button>
           <div class="flex-1 overflow-x-auto hide-scroll">
             <div class="flex gap-2 min-w-max">
-              <button v-for="d in days" :key="d.key"
-                      @click="activeDayIndex=d.index"
-                      class="px-3 py-2 rounded-2xl border text-sm font-medium transition"
-                      :class="activeDayIndex===d.index?'bg-orange-500 text-white border-orange-500 shadow-soft':'bg-white/90 text-winter-900 border-winter-200 hover:bg-white'">
-                <div class="text-[11px] opacity-80">Day {{ d.index+1 }}</div>
-                <div class="font-semibold">{{ d.dateStr.slice(5,10) }}</div>
+              <button v-for="(dStr, idx) in days" :key="dStr"
+                      @click="activeDayIndex = idx"
+                      class="px-4 py-2 rounded-2xl border text-sm font-medium transition min-w-[68px]"
+                      :class="activeDayIndex === idx ? 'bg-orange-500 text-white border-orange-500 shadow-soft':'bg-white/90 text-winter-900 border-winter-200'">
+                <div class="text-[10px] opacity-70">Day {{ idx + 1 }}</div>
+                <div class="font-bold">{{ dStr.slice(5) }}</div>
               </button>
             </div>
           </div>
@@ -82,57 +77,133 @@
 
     <!-- Content -->
     <main class="flex-1 frame px-4 pb-32">
-      <!-- 行程 (Schedule) -->
+      
+      <!-- PAGE 1: SCHEDULE & LIVE WEATHER -->
       <section v-show="activeTab==='schedule'" class="mt-4 space-y-4">
+        <!-- Live Weather Dashboard Component -->
         <div class="glass-dark rounded-2xl text-white shadow-soft p-4">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-base">📅</span>
+            <div class="flex items-center gap-3">
+              <span class="text-3xl">{{ weather.icon }}</span>
               <div>
-                <div class="text-sm font-semibold">當日焦點 · {{ activeDay.dateStr }}</div>
-                <div class="text-xs opacity-90">{{ weatherText || '已成功連接交叉定位調度表' }}</div>
+                <div class="text-sm font-bold">東京/熱海 實時氣象資訊</div>
+                <div class="text-xs text-white/80 mt-0.5">溫度: {{ weather.temp }}°C | {{ weather.desc }}</div>
               </div>
             </div>
-            <button @click="promptWeather" class="text-xs bg-white/20 border border-white/30 px-2 py-1 rounded-lg">編輯</button>
+            <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">自動對時</span>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
-          <div class="tag-title text-winter-900 text-sm font-bold">當日時間軸 (XY 交叉點)</div>
+          <div class="tag-title text-winter-900 text-sm font-bold">當日調度明細</div>
         </div>
 
         <div class="space-y-2.5">
           <div v-for="ev in dayEvents" :key="ev.id" class="rounded-2xl bg-white/95 border border-winter-200 p-3 shadow-card flex items-center gap-4">
-            <div class="bg-indigo-950 text-indigo-300 font-mono text-sm font-bold tracking-wider px-3 py-1 rounded-xl shadow-sm text-center min-w-[65px]">
+            <div class="bg-indigo-950 text-indigo-300 font-mono text-xs font-bold px-2.5 py-1 rounded-xl min-w-[65px] text-center">
               {{ ev.start }}
             </div>
-            <div class="flex-1">
-              <div class="font-semibold text-winter-900 text-[15px]">{{ ev.title }}</div>
-            </div>
+            <div class="flex-1 text-winter-900 font-semibold text-[15px]">{{ ev.title }}</div>
           </div>
-          
-          <div v-if="!dayEvents.length" class="text-sm text-white/90 bg-black/20 p-6 rounded-2xl backdrop-blur-sm text-center">
-            📭 今日該欄位交叉點尚無安排。
+          <div v-if="!dayEvents.length" class="text-sm text-white/90 bg-black/20 p-6 rounded-2xl text-center">
+            📭 交叉矩陣此欄目前無安排事件。
           </div>
         </div>
       </section>
 
-      <!-- Structural fallbacks for other menus -->
-      <section v-show="activeTab==='map'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">📍 地圖與景點收藏</section>
-      <section v-show="activeTab==='budget'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">💰 記帳帳目管理</section>
-      <section v-show="activeTab==='shop'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">🛍️ 購物清單清單</section>
-      <section v-show="activeTab==='info'" class="mt-6 text-white bg-black/20 p-4 rounded-xl">ℹ️ 隨身打包物資</section>
+      <!-- PAGE 2: MAP (Embedded Google Map List View) -->
+      <section v-show="activeTab==='map'" class="mt-4 space-y-4">
+        <div class="tag-title text-winter-900 text-sm font-bold">東京 / 熱海景點地圖集</div>
+        <div class="w-full rounded-2xl overflow-hidden shadow-soft border-2 border-white/20 h-[70vh] bg-gray-900">
+          <!-- Live interactive cross-linked responsive framework window map block -->
+          <iframe 
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d104107.03746678284!2d139.0118534898144!3d35.09743132039572!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6019b8bd49f170ef%3A0x6b63ca52f9540b61!2sAtami%2C%20Shizuoka%2C%20Japan!5e0!3m2!1sen!2shk!4v1710000000000!5m2!1sen!2shk" 
+            class="w-full h-full border-0" 
+            allowfullscreen="" 
+            loading="lazy" 
+            referrerpolicy="no-referrer-when-downgrade">
+          </iframe>
+        </div>
+      </section>
+
+      <!-- PAGE 3: BILLS & BUDGET TRACKING (Live Currency & Strict HKD Alignment) -->
+      <section v-show="activeTab==='budget'" class="mt-4 space-y-4">
+        <div class="tag-title text-winter-900 text-sm font-bold">實時自動結算金流</div>
+        
+        <div class="rounded-2xl p-4 shadow-soft glass-dark text-white space-y-3">
+          <div class="flex items-center justify-between border-b border-white/20 pb-2">
+            <div>
+              <div class="text-[10px] opacity-80 uppercase tracking-wider">總累計支出 (HKD 對齊)</div>
+              <div class="text-3xl font-black font-mono text-orange-400">$ {{ totalHKD.toFixed(2) }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[10px] opacity-80">換算日幣</div>
+              <div class="text-lg font-bold font-mono">¥ {{ totalJPY.toFixed(0) }}</div>
+            </div>
+          </div>
+          
+          <div class="text-[11px] bg-white/10 px-3 py-1.5 rounded-lg flex justify-between items-center text-emerald-300">
+            <span>📈 即時牌告匯率 (匯入自網路)</span>
+            <span class="font-mono font-bold">1 JPY = {{ currentFXRate.toFixed(5) }} HKD</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-center pt-1 text-xs">
+            <div class="bg-white/10 p-2 rounded-xl">
+              <div class="opacity-80">Ariel 支付份額</div>
+              <div class="font-bold font-mono text-sm mt-0.5">HKD {{ paidByPerson.Ariel.toFixed(1) }}</div>
+            </div>
+            <div class="bg-white/10 p-2 rounded-xl">
+              <div class="opacity-80">Wilken 支付份額</div>
+              <div class="font-bold font-mono text-sm mt-0.5">HKD {{ paidByPerson.Wilken.toFixed(1) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
+          <h3 class="text-xs font-bold mb-2 text-winter-800">支出分類比例統計 (依計入之 HKD 權重)</h3>
+          <canvas id="categoryChart" height="150"></canvas>
+        </div>
+
+        <div class="space-y-2">
+          <div v-for="sp in budgetItems" :key="sp.id" class="rounded-xl bg-white/95 border border-winter-200 p-3 shadow-sm flex justify-between items-center">
+            <div>
+              <div class="font-bold text-sm text-winter-900">{{ sp.desc }}</div>
+              <div class="text-[11px] text-winter-600 mt-0.5">{{ sp.category }} • 由 {{ sp.paidBy }} 經 {{ sp.method }}支付</div>
+            </div>
+            <div class="text-right">
+              <div class="text-sm font-bold text-indigo-900 font-mono">HKD {{ sp.hkd.toFixed(2) }}</div>
+              <div class="text-[10px] text-gray-500 font-mono">¥ {{ sp.jpy }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 4: EXCEL DATA EXPORTER SECTION -->
+      <section v-show="activeTab==='info'" class="mt-4 space-y-4">
+        <div class="tag-title text-winter-900 text-sm font-bold">行前數據備份中心</div>
+        
+        <div class="rounded-2xl bg-white/95 border border-winter-200 p-4 shadow-card text-center space-y-3">
+          <div class="text-3xl">📊</div>
+          <div>
+            <h4 class="font-bold text-base text-winter-900">導出離線行程與記帳日誌</h4>
+            <p class="text-xs text-winter-600 mt-1">一鍵將雲端同步的最新 Matrix 日誌與帳單數據包封裝，生成標準 Excel (.xlsx) 檔案保存。</p>
+          </div>
+          
+          <button @click="exportToExcelFormat" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 text-sm">
+            <span>💾</span> 下載 Excel 完整資料日誌
+          </button>
+        </div>
+      </section>
     </main>
 
     <!-- Bottom Nav -->
     <footer class="safe-bottom fixed left-0 right-0 bottom-0 z-50">
       <div class="frame px-5 pb-3">
-        <div class="glass rounded-pill shadow-soft px-2 py-2 grid grid-cols-5 items-center">
-          <button @click="activeTab='schedule'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='schedule' ? 'bg-white/60' : ''"><span>📅</span><span class="text-xs">行程</span></button>
-          <button @click="activeTab='map'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='map' ? 'bg-white/60' : ''"><span>🗺️</span><span class="text-xs">地圖</span></button>
-          <button @click="activeTab='budget'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='budget' ? 'bg-white/60' : ''"><span>💰</span><span class="text-xs">記帳</span></button>
-          <button @click="activeTab='shop'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='shop' ? 'bg-white/60' : ''"><span>🛍️</span><span class="text-xs">購物</span></button>
-          <button @click="activeTab='info'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='info' ? 'bg-white/60' : ''"><span>ℹ️</span><span class="text-xs">資訊</span></button>
+        <div class="glass rounded-pill shadow-soft px-2 py-2 grid grid-cols-4 items-center text-center">
+          <button @click="activeTab='schedule'" class="flex flex-col items-center gap-1 py-1.5 rounded-xl" :class="activeTab==='schedule' ? 'bg-white/60 font-bold' : ''"><span>📅</span><span class="text-[11px]">行程</span></button>
+          <button @click="activeTab='map'" class="flex flex-col items-center gap-1 py-1.5 rounded-xl" :class="activeTab==='map' ? 'bg-white/60 font-bold' : ''"><span>🗺️</span><span class="text-[11px]">地圖</span></button>
+          <button @click="activeTab='budget'" class="flex flex-col items-center gap-1 py-1.5 rounded-xl" :class="activeTab==='budget' ? 'bg-white/60 font-bold' : ''"><span>💰</span><span class="text-[11px]">記帳</span></button>
+          <button @click="activeTab='info'" class="flex flex-col items-center gap-1 py-1.5 rounded-xl" :class="activeTab==='info' ? 'bg-white/60 font-bold' : ''"><span>📊</span><span class="text-[11px]">日誌</span></button>
         </div>
       </div>
     </footer>
@@ -143,97 +214,199 @@
     createApp({
       data(){
         return {
-          activeTab:'schedule', tripStart:new Date('2026-07-01'), tripDays:5, activeDayIndex:0, weatherText:'',
+          activeTab: 'schedule',
+          activeDayIndex: 0,
           loading: false,
-          // ⚠️ 填入你的 Google Sheet ID 序號
           sheetId: '1EohSpcEyr66Au6imdd3UntlJqVPeW4l4_DHwa0Gaqeg', 
-          schedule:{ eventsByDate:{} },
-          map:{ pins:[] }, budget:{ rateJPYperHKD:18.0, items:[] }, shop:{ items:[] }, pack:{ items:[] }
+          days: [], 
+          schedule: { eventsByDate: {} },
+          budgetItems: [],
+          currentFXRate: 0.0515, // High accuracy baseline tracker backup
+          weather: { temp: '--', desc: '讀取中...', icon: '🌤️' },
+          chart: null
         }
       },
       computed:{
-        days(){
-          const arr=[]; for(let i=0;i<this.tripDays;i++){
-            const d=new Date(this.tripStart.getFullYear(),this.tripStart.getMonth(),this.tripStart.getDate()+i);
-            arr.push({ index:i, key:d.toISOString().slice(0,10), dateStr:d.toISOString().slice(0,10) });
-          }
-          return arr;
-        },
-        activeDay(){ return this.days[this.activeDayIndex]; },
+        activeDay(){ return this.days[this.activeDayIndex] || ''; },
         dayEvents(){ 
-          const list = this.schedule.eventsByDate[this.activeDay.key] || []; 
-          return list.slice().sort((a,b)=>a.start.localeCompare(b.start)); 
+          if (!this.activeDay) return [];
+          return this.schedule.eventsByDate[this.activeDay] || []; 
+        },
+        totalHKD(){ return this.budgetItems.reduce((sum, item) => sum + item.hkd, 0); },
+        totalJPY(){ return this.budgetItems.reduce((sum, item) => sum + item.jpy, 0); },
+        paidByPerson(){
+          let Ariel = 0, Wilken = 0;
+          this.budgetItems.forEach(x => {
+            if(x.paidBy === 'Ariel') Ariel += x.hkd;
+            else if(x.paidBy === 'Wilken') Wilken += x.hkd;
+            else { Ariel += x.hkd / 2; Wilken += x.hkd / 2; }
+          });
+          return { Ariel, Wilken };
         }
       },
-      methods:{
-        promptWeather(){ const t = prompt('輸入天氣/活動備註', this.weatherText); if(t!==null) this.weatherText = t; },
-        async fetchGoogleSheetsData() {
-          if (!this.sheetId || this.sheetId.includes('YOUR_SPREADSHEET_ID')) {
-            alert('請先在程式碼第 189 行填入您的 Google Sheet ID！');
-            return;
-          }
+      methods: {
+        async syncAllData() {
           this.loading = true;
+          await this.fetchLiveCurrencyRate();
+          await this.fetchGoogleSheetsSchedule();
+          await this.fetchGoogleSheetsExpenses();
+          await this.fetchLiveWeather();
+          this.loading = false;
+          this.updateChart();
+        },
+        async fetchLiveCurrencyRate() {
+          try {
+            const res = await fetch('https://open.er-api.com/v6/latest/JPY');
+            const data = await res.json();
+            if (data && data.rates && data.rates.HKD) {
+              this.currentFXRate = data.rates.HKD;
+            }
+          } catch (e) { console.error("Currency API fallback active", e); }
+        },
+        async fetchLiveWeather() {
+          try {
+            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true');
+            const data = await res.json();
+            if (data && data.current_weather) {
+              this.weather.temp = Math.round(data.current_weather.temperature);
+              const code = data.current_weather.weathercode;
+              if (code === 0) { this.weather.desc = '晴空萬里'; this.weather.icon = '☀️'; }
+              else if (code <= 3) { this.weather.desc = '多雲偶微陰'; this.weather.icon = '⛅'; }
+              else { this.weather.desc = '局部陣雨'; this.weather.icon = '🌧️'; }
+            }
+          } catch(e) { this.weather.desc = '網絡常規天晴'; }
+        },
+        async fetchGoogleSheetsSchedule() {
           const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Schedule`;
-          
           try {
             const res = await fetch(url);
-            const text = await res.text();
-            this.parseGridPivotMatrix(text);
-          } catch (err) {
-            console.error(err);
-            alert('讀取失敗，請確認雲端硬碟內該 Sheet 是否已設為「知道連結的人均可查看觀看」。');
-          } finally {
-            this.loading = false;
-          }
-        },
-        parseGridPivotMatrix(csvText) {
-          const lines = csvText.split('\n').map(line => line.replace(/^"|"$/g, '').split('","'));
-          if (lines.length === 0) return;
-          
-          // Row 1 (Index 0) gives us the Date Columns starting from B1 (index 1)
-          const headerRow = lines[0];
-          const dates = [];
-          for (let col = 1; col < headerRow.length; col++) {
-            const dateStr = headerRow[col] ? headerRow[col].trim() : '';
-            if (!dateStr) break; // Break if no more columns/dates are populated
-            dates.push(dateStr);
-          }
-          
-          const newEvents = {};
-          dates.forEach(d => { newEvents[d] = []; });
-          
-          // Times start down at Row 5 (Index 4)
-          for (let i = 4; i < lines.length; i++) {
-            const row = lines[i];
-            if (!row || row.length === 0) continue;
-            
-            const timeSlot = row[0] ? row[0].trim() : '';
-            if (!timeSlot) break; // Break row sequence if Time column is empty
-            
-            // Look down the columns matching our populated dates
-            for (let dIdx = 0; dIdx < dates.length; dIdx++) {
-              const colIdx = dIdx + 1; // offset by 1 because Column A is our time array
-              const eventTitle = row[colIdx] ? row[colIdx].trim() : '';
-              
-              if (eventTitle) {
-                const targetDateKey = dates[dIdx];
-                newEvents[targetDateKey].push({
-                  id: crypto.randomUUID(),
-                  start: timeSlot,
-                  title: eventTitle
-                });
+            const csv = await res.text();
+            const lines = csv.split('\n').map(l => l.replace(/^"|"$/g, '').split('","'));
+            if (lines.length === 0) return;
+
+            const headerRow = lines[0];
+            const parsedDates = [];
+            for (let c = 1; c < headerRow.length; c++) {
+              const dStr = headerRow[c] ? headerRow[c].trim() : '';
+              if (!dStr || dStr.toLowerCase().includes('gid')) break;
+              parsedDates.push(dStr);
+            }
+            this.days = parsedDates;
+
+            const matrix = {};
+            parsedDates.forEach(d => { matrix[d] = []; });
+
+            for (let i = 4; i < lines.length; i++) {
+              const row = lines[i];
+              if (!row || row.length === 0) continue;
+              const timeSlot = row[0] ? row[0].trim() : '';
+              if (!timeSlot) continue;
+
+              for (let dIdx = 0; dIdx < parsedDates.length; dIdx++) {
+                const textVal = row[dIdx + 1] ? row[dIdx + 1].trim() : '';
+                if (textVal) {
+                  matrix[parsedDates[dIdx]].push({
+                    id: crypto.randomUUID(),
+                    start: timeSlot,
+                    title: textVal
+                  });
+                }
               }
             }
-          }
+            this.schedule.eventsByDate = matrix;
+          } catch (err) { console.error(err); }
+        },
+        async fetchGoogleSheetsExpenses() {
+          const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Expenses`;
+          try {
+            const res = await fetch(url);
+            const csv = await res.text();
+            const lines = csv.split('\n').map(l => l.replace(/^"|"$/g, '').split('","'));
+            
+            const tempItems = [];
+            for(let i = 1; i < lines.length; i++) {
+              const r = lines[i];
+              if(!r || r.length < 2 || !r[0]) continue;
+              
+              const jpyAmt = parseFloat(r[1]) || 0;
+              const convertedHkd = jpyAmt * this.currentFXRate; // Precise calculations aligned
+
+              tempItems.push({
+                id: crypto.randomUUID(),
+                desc: r[0].trim(),
+                jpy: jpyAmt,
+                hkd: convertedHkd,
+                category: r[2] ? r[2].trim() : '美食',
+                paidBy: r[3] ? r[3].trim() : '雙方分攤',
+                method: r[4] ? r[4].trim() : '現金'
+              });
+            }
+            this.budgetItems = tempItems;
+          } catch(e) { console.error(e); }
+        },
+        exportToExcelFormat() {
+          const workbook = XLSX.utils.book_new();
           
-          this.schedule.eventsByDate = newEvents;
-          localStorage.setItem('tokyo_pivot_cache', JSON.stringify(newEvents));
+          // Sheet 1 processing: Flat Schedule log conversion
+          const flatSchedule = [];
+          Object.keys(this.schedule.eventsByDate).forEach(date => {
+            this.schedule.eventsByDate[date].forEach(ev => {
+              flatSchedule.push({ "日期": date, "時間": ev.start, "行程細節": ev.title });
+            });
+          });
+          const wsSchedule = XLSX.utils.json_to_sheet(flatSchedule);
+          XLSX.utils.book_append_sheet(workbook, wsSchedule, "行程日誌備份");
+          
+          // Sheet 2 processing: Financial log ledger conversion
+          const financialLedger = this.budgetItems.map(x => ({
+            "支出項目項目": x.desc,
+            "日幣金額 (JPY)": x.jpy,
+            "港幣換算 (HKD)": parseFloat(x.hkd.toFixed(2)),
+            "分類": x.category,
+            "代墊付款人": x.paidBy,
+            "支付管道": x.method
+          }));
+          const wsExpenses = XLSX.utils.json_to_sheet(financialLedger);
+          XLSX.utils.book_append_sheet(workbook, wsExpenses, "金流記帳明細");
+          
+          // Fire file system generation download trigger
+          XLSX.writeFile(workbook, `Tokyo_Trip_2026_Backup_Log.xlsx`);
+        },
+        initChart() {
+          const ctx = document.getElementById('categoryChart');
+          if (!ctx) return;
+          this.chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: ['交通', '美食', '購物', '景點'],
+              datasets: [{
+                data: this.getCategoryTotals(),
+                backgroundColor: ['#f97316', '#f59e0b', '#3b82f6', '#10b981'],
+                borderColor: '#0b1329',
+                borderWidth: 2
+              }]
+            },
+            options: {
+              plugins: { legend: { position: 'right', labels: { color: '#fff', font: { size: 11 } } } },
+              responsive: true, maintainAspectRatio: false
+            }
+          });
+        },
+        updateChart() {
+          if (this.chart) {
+            this.chart.data.datasets[0].data = this.getCategoryTotals();
+            this.chart.update();
+          }
+        },
+        getCategoryTotals() {
+          const map = { '交通': 0, '美食': 0, '購物': 0, '景點': 0 };
+          this.budgetItems.forEach(x => { if (map[x.category] !== undefined) map[x.category] += x.hkd; });
+          return [map['交通'], map['美食'], map['購物'], map['景點']];
         }
       },
-      mounted(){
-        const cache = localStorage.getItem('tokyo_pivot_cache');
-        if (cache) this.schedule.eventsByDate = JSON.parse(cache);
-        this.fetchGoogleSheetsData();
+      async mounted(){
+        await this.syncAllData();
+        this.$nextTick(() => { this.initChart(); });
       }
     }).mount('#app');
   </script>

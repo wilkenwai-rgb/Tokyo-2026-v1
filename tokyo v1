@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="theme-color" content="#60a5fa"/>
+  <title>Tokyo Trip</title>
+
+  <!-- Preconnect for iOS Chrome -->
+  <link rel="preconnect" href="https://cdn.tailwindcss.com"/>
+  <link rel="preconnect" href="https://unpkg.com"/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            winter: {50:'#f0f8ff',100:'#e6f2ff',200:'#cfe6ff',300:'#a8d4ff',400:'#7cc0ff',
+                     500:'#56acee',600:'#3a90d5',700:'#2e75ad',800:'#245f8d',900:'#1e4f76'}
+          },
+          boxShadow:{ soft:'0 12px 30px rgba(30,79,118,.18)', card:'0 8px 20px rgba(30,79,118,.14)'},
+          borderRadius:{ pill:'32px' }
+        }
+      }
+    }
+  </script>
+
+  <!-- Vue & Chart.js -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
+    html,body{height:100%}
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% -150px, rgba(255,255,255,.55), transparent 70%),
+        linear-gradient(180deg, #e6f2ff 0%, #cfe6ff 20%, #a8d4ff 60%, #7cc0ff 100%);
+      -webkit-font-smoothing: antialiased;
+    }
+    .bg-mount{position:fixed; inset:0; z-index:-1; opacity:.9;
+      background-image:url('https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=1600&auto=format&fit=crop');
+      background-size:cover; background-position:center; filter:blur(6px) saturate(105%);}
+    .glass{background:rgba(255,255,255,.28); backdrop-filter:blur(16px) saturate(115%);}
+    .glass-dark{background:rgba(31,78,110,.25); backdrop-filter:blur(16px) saturate(120%);}
+    .tag-title{display:inline-block; padding:.35rem .7rem; border-radius:.75rem; background:#fff; box-shadow:0 6px 14px rgba(0,0,0,.08);}
+    .hide-scroll::-webkit-scrollbar{display:none} .hide-scroll{scrollbar-width:none}
+    .safe-top{padding-top:var(--safe-top)} .safe-bottom{padding-bottom:var(--safe-bottom)}
+    /* Mobile frame: fits iPhone 13 mini (375px) & 16 Pro (~402px logical). */
+    .frame{width:100vw; max-width:430px; margin:0 auto;}
+  </style>
+</head>
+<body class="text-winter-900">
+  <div class="bg-mount"></div>
+
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="safe-top">
+      <div class="frame px-4 pt-2">
+        <div class="flex items-center justify-between">
+          <h1 class="text-lg font-semibold">Tokyo Trip <span class="text-winter-600">▲</span></h1>
+          <div class="text-xs text-winter-800">1 JPY ≈ {{ (1 / rateHKDperJPY).toFixed(3) }} HKD</div>
+        </div>
+
+        <!-- Day chips (行程) -->
+        <div class="mt-3 flex items-center gap-2">
+          <button class="rounded-xl px-3 py-2 text-sm font-medium shadow-card bg-white text-winter-800 border border-winter-200">
+            行程
+          </button>
+          <div class="flex-1 overflow-x-auto hide-scroll">
+            <div class="flex gap-2 min-w-max">
+              <button v-for="d in days" :key="d.key"
+                      @click="activeDayIndex=d.index"
+                      class="px-3 py-2 rounded-2xl border text-sm font-medium transition"
+                      :class="activeDayIndex===d.index?'bg-winter-600 text-white border-winter-600 shadow-soft':'bg-white/90 text-winter-900 border-winter-200 hover:bg-white'">
+                <div class="text-[11px] opacity-80">Day {{ d.index+1 }}</div>
+                <div class="font-semibold">{{ d.dateStr.slice(8,10) }}</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 frame px-4 pb-32">
+
+      <!-- 行程 (Schedule) -->
+      <section v-show="activeTab==='schedule'" class="mt-4 space-y-4">
+        <!-- Tokyo Weather note -->
+        <div class="glass-dark rounded-2xl text-white shadow-soft p-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-base">☀️</span>
+              <div>
+                <div class="text-sm font-semibold">東京 · Day {{ activeDayIndex+1 }} · {{ activeDay.dateStr }}</div>
+                <div class="text-xs opacity-90">{{ weatherText || '備註天氣：晴 / 多雲（東京）' }}</div>
+              </div>
+            </div>
+            <button @click="promptWeather('東京')" class="text-xs bg-white/20 border border-white/30 px-2 py-1 rounded-lg">編輯</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div class="tag-title text-winter-900 text-sm font-bold">行程安排</div>
+          <button @click="openQuickAdd('schedule')" class="px-3 py-1.5 rounded-xl bg-winter-600 text-white text-sm shadow-card">＋ 新增</button>
+        </div>
+
+        <!-- Events list -->
+        <div class="space-y-2">
+          <div v-for="ev in dayEvents" :key="ev.id"
+               class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
+            <div class="flex items-center justify-between">
+              <div class="font-semibold">{{ ev.title }}</div>
+              <button @click="removeEvent(ev.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
+            </div>
+            <div class="text-xs text-winter-700 mt-1">{{ ev.start }} → {{ ev.end }}</div>
+          </div>
+          <div v-if="!dayEvents.length" class="text-sm text-winter-800">尚未新增事件。可在下方選擇時段或使用「＋ 新增」。</div>
+        </div>
+
+        <!-- Quick add -->
+        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
+          <div class="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label class="text-xs text-winter-700">時段</label>
+              <select v-model="schedule.newEvent.start" class="mt-1 w-full rounded-lg border border-winter-200">
+                <option v-for="t in timeSlots" :value="t">{{ t }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-winter-700">時長</label>
+              <select v-model.number="schedule.newEvent.durationMins" class="mt-1 w-full rounded-lg border border-winter-200">
+                <option :value="30">30 分</option><option :value="60">60 分</option><option :value="90">90 分</option><option :value="120">120 分</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-winter-700">標題</label>
+              <input v-model="schedule.newEvent.title" placeholder="例如：淺草寺參拜" class="mt-1 w-full rounded-lg border border-winter-200"/>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button @click="addEvent" class="flex-1 rounded-xl bg-winter-600 text-white py-2">加入行程</button>
+            <button @click="clearDayEvents" class="rounded-xl bg-white border border-winter-300 px-3">清空當日</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 地圖 (Map Pins) -->
+      <section v-show="activeTab==='map'" class="mt-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="tag-title text-winter-900 text-sm font-bold">地圖</div>
+          <button @click="openQuickAdd('map')" class="px-3 py-1.5 rounded-xl bg-winter-600 text-white text-sm shadow-card">＋ 新增</button>
+        </div>
+
+        <div class="space-y-3">
+          <div v-for="p in map.pins" :key="p.id"
+               class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-semibold">{{ p.name }}</div>
+                <div class="text-xs text-winter-700">{{ p.category }} • {{ p.notes }}</div>
+              </div>
+              <button @click="removePin(p.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <a :href="mapsSearchUrl(p)" target="_blank" class="text-center text-xs py-1.5 bg-winter-100 hover:bg-winter-200 rounded-xl text-winter-900 font-medium">開啟地圖</a>
+              <a :href="mapsDirectionsUrl(p)" target="_blank" class="text-center text-xs py-1.5 bg-winter-100 hover:bg-winter-200 rounded-xl text-winter-900 font-medium">導航（步行）</a>
+            </div>
+          </div>
+          <div v-if="!map.pins.length" class="text-sm text-winter-800">尚未建立景點 / 餐廳（東京）。按右上角「＋ 新增」。</div>
+        </div>
+
+        <!-- Add pin -->
+        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
+          <div class="grid grid-cols-1 gap-2">
+            <input v-model="map.newPin.name" placeholder="地點名稱（例：東京鐵塔）" class="rounded-lg border border-winter-200"/>
+            <input v-model="map.newPin.query" placeholder="搜尋字串或地址（例：Tokyo Tower, Tokyo, Japan）" class="rounded-lg border border-winter-200"/>
+            <div class="grid grid-cols-2 gap-2">
+              <select v-model="map.newPin.category" class="rounded-lg border border-winter-200">
+                <option>景點</option><option>美食</option><option>購物</option><option>交通</option>
+              </select>
+              <input v-model="map.newPin.notes" placeholder="備註（例：夜景看台）" class="rounded-lg border border-winter-200"/>
+            </div>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <button @click="addPin" class="flex-1 rounded-xl bg-winter-600 text-white py-2">加入清單</button>
+            <button @click="clearPins" class="rounded-xl bg-white border border-winter-300 px-3">全部清除</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 記帳 (Budget) -->
+      <section v-show="activeTab==='budget'" class="mt-6 space-y-4">
+        <div class="tag-title text-winter-900 text-sm font-bold">旅費管理</div>
+
+        <!-- Summary glass -->
+        <div class="rounded-2xl p-5 shadow-soft glass-dark text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs opacity-90">總支出（HKD）</div>
+              <div class="text-4xl font-bold leading-tight">$ {{ totalHKD.toFixed(0) }}</div>
+              <div class="text-xs opacity-90">日幣估計 ¥ {{ totalJPY.toFixed(0) }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs opacity-90">剩餘預算（HKD）</div>
+              <div class="text-2xl font-bold">{{ remainingHKD.toFixed(0) }}</div>
+              <div class="text-xs opacity-90">¥ {{ remainingJPY.toFixed(0) }}</div>
+            </div>
+          </div>
+
+          <!-- method totals -->
+          <div class="mt-4 border-t border-white/30 pt-3 grid grid-cols-2 gap-3 text-center">
+            <div>
+              <div class="text-xs opacity-90">💵 現金</div>
+              <div class="text-xl font-bold">HKD {{ paidByMethod.cash.toFixed(0) }}</div>
+              <div class="text-xs opacity-90">¥ {{ (paidByMethod.cash * rateJPYperHKD).toFixed(0) }}</div>
+            </div>
+            <div>
+              <div class="text-xs opacity-90">💳 信用卡</div>
+              <div class="text-xl font-bold">HKD {{ paidByMethod.card.toFixed(0) }}</div>
+              <div class="text-xs opacity-90">¥ {{ (paidByMethod.card * rateJPYperHKD).toFixed(0) }}</div>
+            </div>
+          </div>
+
+          <!-- NEW: paid-by totals -->
+          <div class="mt-4 border-t border-white/30 pt-3 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div class="text-xs opacity-90">Ariel 支付</div>
+              <div class="text-lg font-bold">HKD {{ paidByPerson.Ariel.toFixed(0) }}</div>
+            </div>
+            <div>
+              <div class="text-xs opacity-90">Wilken 支付</div>
+              <div class="text-lg font-bold">HKD {{ paidByPerson.Wilken.toFixed(0) }}</div>
+            </div>
+            <div>
+              <div class="text-xs opacity-90">雙方（混合）</div>
+              <div class="text-lg font-bold">HKD {{ paidByPerson.Both.toFixed(0) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls + 記一筆 -->
+        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-winter-700">預算（HKD）</label>
+              <input type="number" v-model.number="budget.limitHKD" class="mt-1 w-full rounded-lg border border-winter-200"/>
+            </div>
+            <div>
+              <label class="text-xs text-winter-700">匯率（JPY／HKD）</label>
+              <input type="number" step="0.01" v-model.number="budget.rateJPYperHKD" class="mt-1 w-full rounded-lg border border-winter-200"/>
+            </div>
+          </div>
+          <hr class="my-3 border-winter-200"/>
+          <!-- 記一筆 -->
+          <div class="grid grid-cols-1 gap-2">
+            <input v-model="budget.newItem.desc" placeholder="支出說明（例：拉麵午餐）" class="rounded-lg border border-winter-200"/>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="number" v-model.number="budget.newItem.hkd" @input="syncJPYFromHKD" placeholder="金額（HKD）" class="rounded-lg border border-winter-200"/>
+              <input type="number" v-model.number="budget.newItem.jpy" @input="syncHKDFromJPY" placeholder="金額（JPY）" class="rounded-lg border border-winter-200"/>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <select v-model="budget.newItem.category" class="rounded-lg border border-winter-200">
+                <option>交通</option><option>美食</option><option>購物</option><option>景點</option>
+              </select>
+              <select v-model="budget.newItem.method" class="rounded-lg border border-winter-200">
+                <option>現金</option><option>信用卡</option>
+              </select>
+              <!-- NEW: paid by column -->
+              <select v-model="budget.newItem.paidBy" class="rounded-lg border border-winter-200">
+                <option>Ariel</option><option>Wilken</option><option>雙方（混合）</option>
+              </select>
+            </div>
+            <!-- split only if Both -->
+            <div v-if="budget.newItem.paidBy==='雙方（混合）'" class="grid grid-cols-2 gap-2">
+              <input type="number" v-model.number="budget.newItem.splitHKD.Ariel" placeholder="Ariel 分攤（HKD）" class="rounded-lg border border-winter-200"/>
+              <input type="number" v-model.number="budget.newItem.splitHKD.Wilken" placeholder="Wilken 分攤（HKD）" class="rounded-lg border border-winter-200"/>
+            </div>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <button @click="addSpending" class="flex-1 rounded-xl bg-winter-600 text-white py-2">＋ 記一筆</button>
+            <button @click="clearSpendings" class="rounded-xl bg-white border border-winter-300 px-3">清空</button>
+          </div>
+        </div>
+
+        <!-- Category Pie -->
+        <div class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
+          <h3 class="text-sm font-semibold mb-2">分類比例</h3>
+          <canvas id="categoryChart" height="160"></canvas>
+        </div>
+
+        <!-- List -->
+        <ul class="space-y-2">
+          <li v-for="sp in budget.items" :key="sp.id" class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
+            <div class="flex items-center justify-between">
+              <div class="font-semibold">{{ sp.desc }}</div>
+              <button @click="removeSpending(sp.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
+            </div>
+            <div class="text-xs text-winter-700 mt-1">
+              {{ sp.category }} • {{ sp.method }} • 金額：HKD {{ (sp.hkd||0).toFixed(2) }}（¥{{ (sp.jpy||0).toFixed(0) }}） • 付款：{{ sp.paidBy }}
+              <span v-if="sp.paidBy==='雙方（混合）'">（Ariel {{ (sp.splitHKD.Ariel||0).toFixed(2) }}，Wilken {{ (sp.splitHKD.Wilken||0).toFixed(2) }}）</span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 購物 -->
+      <section v-show="activeTab==='shop'" class="mt-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="tag-title text-winter-900 text-sm font-bold">購物清單</div>
+          <button @click="openQuickAdd('shop')" class="px-3 py-1.5 rounded-xl bg-winter-600 text-white text-sm shadow-card">＋</button>
+        </div>
+
+        <div class="space-y-3">
+          <div v-for="it in shop.items" :key="it.id" class="rounded-2xl bg-white/92 border border-winter-200 p-3 shadow-card">
+            <div class="grid grid-cols-[96px,1fr] gap-3 items-center">
+              <img v-if="it.photo" :src="it.photo" class="w-24 h-24 object-cover rounded-xl border border-winter-200" />
+              <div v-else class="w-24 h-24 rounded-xl bg-winter-100 border border-winter-200 flex items-center justify-center text-winter-700 text-xs">無照片</div>
+              <div class="flex flex-col">
+                <div class="font-semibold">{{ it.text }}</div>
+                <div class="text-xs text-winter-700">{{ it.where || '—' }}</div>
+                <div class="text-sm font-medium mt-1">¥{{ (it.priceJPY||0).toFixed(0) }} <span class="text-winter-700 text-xs">（HKD {{ ((it.priceJPY||0)/rateJPYperHKD).toFixed(0) }}）</span></div>
+              </div>
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" v-model="it.checked" class="rounded"/> 已勾選
+              </label>
+              <div class="flex gap-2">
+                <button @click="editShop(it)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">編輯</button>
+                <button @click="removeShopItem(it.id)" class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">刪除</button>
+              </div>
+            </div>
+          </div>
+          <div v-if="!shop.items.length" class="text-sm text-winter-800">尚未加入購物項目。按右上角「＋」新增。</div>
+        </div>
+
+        <!-- Add Item -->
+        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
+          <div class="grid grid-cols-1 gap-2">
+            <input v-model="shop.newItem.text" placeholder="項目（例：CEZANNE 101 號唇膏）" class="rounded-lg border border-winter-200"/>
+            <div class="grid grid-cols-2 gap-2">
+              <input v-model="shop.newItem.where" placeholder="購買地點（例：澀谷）" class="rounded-lg border border-winter-200"/>
+              <input type="number" v-model.number="shop.newItem.priceJPY" placeholder="價格（日圓）" class="rounded-lg border border-winter-200"/>
+            </div>
+            <input type="file" accept="image/*" @change="onShopPhotoUpload" class="rounded-lg border border-winter-200"/>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <button @click="addShopItem" class="flex-1 rounded-xl bg-winter-600 text-white py-2">加入清單</button>
+            <button @click="clearShop" class="rounded-xl bg-white border border-winter-300 px-3">清空</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 資訊（打包） -->
+      <section v-show="activeTab==='info'" class="mt-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="tag-title text-winter-900 text-sm font-bold">行前清單</div>
+          <button @click="openQuickAdd('pack')" class="px-3 py-1.5 rounded-xl bg-winter-600 text-white text-sm shadow-card">＋ 新增</button>
+        </div>
+        <ul class="space-y-2">
+          <li v-for="it in pack.items" :key="it.id" class="rounded-2xl bg-white/90 border border-winter-200 p-3 shadow-card">
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2">
+                <input type="checkbox" v-model="it.checked" class="rounded"/>
+                <span class="font-medium" :class="it.checked ? 'line-through text-winter-700' : ''">{{ it.text }}</span>
+              </label>
+              <span class="text-xs rounded-lg bg-white border border-winter-300 px-2 py-1">{{ it.who }}</span>
+            </div>
+          </li>
+        </ul>
+        <div class="rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
+          <div class="grid grid-cols-2 gap-2">
+            <input v-model="pack.newItem.text" placeholder="項目（例：旅遊保險）" class="rounded-lg border border-winter-200"/>
+            <select v-model="pack.newItem.who" class="rounded-lg border border-winter-200">
+              <option>Ariel</option><option>Wilken</option>
+            </select>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <button @click="addPackItem" class="flex-1 rounded-xl bg-winter-600 text-white py-2">加入清單</button>
+            <button @click="clearPack" class="rounded-xl bg-white border border-winter-300 px-3">清空</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Backup -->
+      <section class="mt-6 rounded-2xl p-3 bg-white/85 border border-winter-200 shadow-card">
+        <h2 class="text-sm font-semibold mb-2">資料備份</h2>
+        <div class="grid grid-cols-2 gap-2">
+          <button @click="exportJSON" class="rounded-xl bg-white border border-winter-300 py-2 text-sm">匯出 JSON</button>
+          <label class="rounded-xl bg-white border border-winter-300 py-2 text-sm text-center cursor-pointer">匯入 JSON
+            <input type="file" accept="application/json" @change="importJSON" class="hidden"/>
+          </label>
+        </div>
+        <p class="mt-2 text-[11px] text-winter-700">本機瀏覽器自動保存（localStorage）。</p>
+      </section>
+    </main>
+
+    <!-- Bottom pill nav -->
+    <footer class="safe-bottom fixed left-0 right-0 bottom-0">
+      <div class="frame px-5 pb-3">
+        <div class="glass rounded-pill shadow-soft px-2 py-2 grid grid-cols-5 items-center">
+          <button @click="activeTab='schedule'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='schedule' ? 'bg-white/60' : ''"><span>📅</span><span class="text-xs">行程</span></button>
+          <button @click="activeTab='map'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='map' ? 'bg-white/60' : ''"><span>🗺️</span><span class="text-xs">地圖</span></button>
+          <button @click="activeTab='budget'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='budget' ? 'bg-white/60' : ''"><span>💰</span><span class="text-xs">記帳</span></button>
+          <button @click="activeTab='shop'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='shop' ? 'bg-white/60' : ''"><span>🛍️</span><span class="text-xs">購物</span></button>
+          <button @click="activeTab='info'" class="flex flex-col items-center gap-1 py-2 rounded-lg" :class="activeTab==='info' ? 'bg-white/60' : ''"><span>ℹ️</span><span class="text-xs">資訊</span></button>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const { createApp, computed, watch } = Vue;
+
+    createApp({
+      data(){
+        return {
+          activeTab:'schedule',
+          // Days bar
+          tripStart:new Date(), tripDays:5, activeDayIndex:0,
+          weatherText:'',
+
+          // Schedule
+          schedule:{ newEvent:{ start:'09:00', durationMins:60, title:'' }, eventsByDate:{} },
+
+          // Map (default Tokyo)
+          map:{
+            newPin:{ name:'', query:'Tokyo, Japan', category:'景點', notes:'' },
+            pins:[
+              { id:crypto.randomUUID(), name:'東京鐵塔', query:'Tokyo Tower, Tokyo', category:'景點', notes:'夜間點燈' }
+            ]
+          },
+
+          // Budget — removed PayPay; keep cash/card only; add paidBy
+          budget:{
+            rateJPYperHKD:18.0,
+            limitHKD:5000,
+            newItem:{ desc:'', hkd:null, jpy:null, category:'美食', method:'現金',
+                      paidBy:'Ariel', splitHKD:{ Ariel:null, Wilken:null } },
+            items:[]
+          },
+
+          // Shop & Pack
+          shop:{ newItem:{ text:'', where:'', priceJPY:null, photo:null }, items:[] },
+          pack:{ newItem:{ text:'', who:'Ariel' }, items:[] },
+
+          chart:null
+        }
+      },
+
+      computed:{
+        rateHKDperJPY(){ return 1/(this.budget.rateJPYperHKD||1); },
+        rateJPYperHKD(){ return this.budget.rateJPYperHKD||1; },
+
+        days(){
+          const arr=[]; for(let i=0;i<this.tripDays;i++){
+            const d=new Date(this.tripStart.getFullYear(),this.tripStart.getMonth(),this.tripStart.getDate()+i);
+            arr.push({ index:i, key:d.toISOString().slice(0,10), dateStr:d.toISOString().slice(0,10) });
+          }
+          return arr;
+        },
+        activeDay(){ return this.days[this.activeDayIndex]; },
+
+        timeSlots(){
+          const out=[]; for(let h=6;h<=23;h++){ out.push(`${String(h).padStart(2,'0')}:00`); if(h!==23) out.push(`${String(h).padStart(2,'0')}:30`); }
+          return out;
+        },
+        dayEvents(){
+          const list=this.schedule.eventsByDate[this.activeDay.key]||[]; return list.slice().sort((a,b)=>a.start.localeCompare(b.start));
+        },
+
+        // Budget totals
+        totalHKD(){ return this.budget.items.reduce((s,x)=> s+(x.hkd||0), 0); },
+        totalJPY(){ return this.totalHKD * this.rateJPYperHKD; },
+        remainingHKD(){ return Math.max(0,(this.budget.limitHKD||0) - this.totalHKD); },
+        remainingJPY(){ return this.remainingHKD * this.rateJPYperHKD; },
+
+        // Totals by payment method
+        paidByMethod(){
+          const c={ cash:0, card:0 };
+          for(const x of this.budget.items){
+            if(x.method==='現金') c.cash += x.hkd||0; else if(x.method==='信用卡') c.card += x.hkd||0;
+          }
+          return c;
+        },
+
+        // NEW: totals by person (Paid By)
+        paidByPerson(){
+          let Ariel=0, Wilken=0, Both=0;
+          for(const x of this.budget.items){
+            if(x.paidBy==='Ariel') Ariel += x.hkd||0;
+            else if(x.paidBy==='Wilken') Wilken += x.hkd||0;
+            else Both += x.hkd||0;
+          }
+          return { Ariel, Wilken, Both };
+        }
+      },
+
+      methods:{
+        // Helpers
+        promptWeather(defaultCity){
+          const t = prompt('輸入東京天氣／備註（例：18°C 晴天）', this.weatherText || '');
+          if(t!==null){ this.weatherText = t; this.save(); }
+        },
+        formatHKD(v){ return `HKD ${Number(v||0).toFixed(2)}`; },
+
+        // Schedule
+        addEvent(){
+          const s=this.schedule.newEvent; if(!s.title) return alert('請輸入標題');
+          const end=this.addMinutes(s.start,s.durationMins);
+          const ev={ id:crypto.randomUUID(), start:s.start, end, title:s.title };
+          const key=this.activeDay.key;
+          const list=this.schedule.eventsByDate[key]||[]; list.push(ev);
+          this.schedule.eventsByDate[key]=list; this.schedule.newEvent.title=''; this.save();
+        },
+        removeEvent(id){
+          const key=this.activeDay.key; const list=this.schedule.eventsByDate[key]||[];
+          this.schedule.eventsByDate[key]=list.filter(x=>x.id!==id); this.save();
+        },
+        clearDayEvents(){ this.schedule.eventsByDate[this.activeDay.key]=[]; this.save(); },
+        addMinutes(t,m){ const [h,mm]=t.split(':').map(Number); const base=new Date(0,0,0,h,mm); const end=new Date(base.getTime()+m*60000); return `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`; },
+
+        // Map
+        addPin(){
+          const n=this.map.newPin; if(!n.name || !n.query) return alert('請輸入名稱與搜尋字串');
+          this.map.pins.push({ id:crypto.randomUUID(), ...n });
+          this.map.newPin={ name:'', query:'Tokyo, Japan', category:'景點', notes:'' };
+          this.save();
+        },
+        removePin(id){ this.map.pins=this.map.pins.filter(p=>p.id!==id); this.save(); },
+        clearPins(){ this.map.pins=[]; this.save(); },
+        mapsSearchUrl(p){ const q=encodeURIComponent(p.query || p.name); return `https://www.google.com/maps/search/?api=1&query=${q}`; },
+        mapsDirectionsUrl(p){ const d=encodeURIComponent(p.query || p.name); return `https://www.google.com/maps/dir/?api=1&destination=${d}&travelmode=walking`; },
+
+        // Budget
+        syncJPYFromHKD(){ const h=Number(this.budget.newItem.hkd||0); this.budget.newItem.jpy=h*this.rateJPYperHKD; },
+        syncHKDFromJPY(){ const j=Number(this.budget.newItem.jpy||0); this.budget.newItem.hkd=j/this.rateJPYperHKD; },
+        addSpending(){
+          const x=this.budget.newItem; if(!x.desc) return alert('請輸入說明');
+          const hkd = Number(x.hkd || (x.jpy||0)/this.rateJPYperHKD);
+          if(hkd<=0) return alert('請輸入金額');
+          const jpy = Number(x.jpy || hkd*this.rateJPYperHKD);
+
+          let splitHKD = { Ariel:null, Wilken:null };
+          if(x.paidBy==='雙方（混合）'){
+            const a=Number(x.splitHKD.Ariel ?? NaN), w=Number(x.splitHKD.Wilken ?? NaN);
+            splitHKD = (isNaN(a)&&isNaN(w)) ? {Ariel:hkd/2, Wilken:hkd/2}
+                     : {Ariel:isNaN(a)?hkd-(isNaN(w)?0:w):a, Wilken:isNaN(w)?hkd-(isNaN(a)?0:a):w};
+          }
+
+          this.budget.items.push({
+            id:crypto.randomUUID(),
+            desc:x.desc, hkd, jpy,
+            category:x.category, method:x.method, paidBy:x.paidBy, splitHKD
+          });
+          this.budget.newItem={ desc:'', hkd:null, jpy:null, category:'美食', method:'現金', paidBy:'Ariel', splitHKD:{ Ariel:null, Wilken:null } };
+          this.save(); this.updateChart();
+        },
+        removeSpending(id){ this.budget.items=this.budget.items.filter(s=>s.id!==id); this.save(); this.updateChart(); },
+        clearSpendings(){ this.budget.items=[]; this.save(); this.updateChart(); },
+
+        // Shop
+        onShopPhotoUpload(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>this.shop.newItem.photo=r.result; r.readAsDataURL(f); },
+        addShopItem(){ const it=this.shop.newItem; if(!it.text) return alert('請輸入項目'); this.shop.items.push({ id:crypto.randomUUID(), text:it.text, where:it.where, priceJPY:it.priceJPY, photo:it.photo, checked:false }); this.shop.newItem={ text:'', where:'', priceJPY:null, photo:null }; this.save(); },
+        editShop(it){ const name=prompt('修改項目名稱',it.text); if(name!==null) it.text=name; const where=prompt('修改地點',it.where||''); if(where!==null) it.where=where; const price=prompt('修改價格（日圓）',it.priceJPY||''); if(price!==null) it.priceJPY=Number(price)||0; this.save(); },
+        removeShopItem(id){ this.shop.items=this.shop.items.filter(x=>x.id!==id); this.save(); },
+        clearShop(){ this.shop.items=[]; this.save(); },
+
+        // Pack
+        addPackItem(){ const it=this.pack.newItem; if(!it.text) return alert('請輸入項目'); this.pack.items.push({ id:crypto.randomUUID(), text:it.text, who:it.who, checked:false }); this.pack.newItem={ text:'', who:'Ariel' }; this.save(); },
+        clearPack(){ this.pack.items=[]; this.save(); },
+
+        // Backup
+        exportJSON(){ const payload=JSON.stringify({ schedule:this.schedule, map:this.map, budget:this.budget, shop:this.shop, pack:this.pack, weatherText:this.weatherText, tripStart:this.tripStart, tripDays:this.tripDays }); const blob=new Blob([payload],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='tokyo-trip-data.json'; a.click(); URL.revokeObjectURL(url); },
+        importJSON(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); localStorage.setItem('tokyoTripPlannerV3', JSON.stringify(d)); this.load(); this.updateChart(); alert('匯入完成'); }catch{ alert('JSON 格式錯誤'); } }; r.readAsText(f); },
+
+        // Persistence
+        save(){ const payload={ schedule:this.schedule, map:this.map, budget:this.budget, shop:this.shop, pack:this.pack, weatherText:this.weatherText, tripStart:this.tripStart, tripDays:this.tripDays }; localStorage.setItem('tokyoTripPlannerV3', JSON.stringify(payload)); },
+        load(){ const raw=localStorage.getItem('tokyoTripPlannerV3'); if(!raw) return; try{ const d=JSON.parse(raw); this.schedule=d.schedule||this.schedule; this.map=d.map||this.map; this.budget=d.budget||this.budget; this.shop=d.shop||this.shop; this.pack=d.pack||this.pack; this.weatherText=d.weatherText||''; if(d.tripStart) this.tripStart=new Date(d.tripStart); if(d.tripDays) this.tripDays=d.tripDays; }catch{} },
+
+        // Charts
+        initChart(){ const ctx=document.getElementById('categoryChart'); if(!ctx) return;
+          this.chart=new Chart(ctx,{ type:'pie', data:{ labels:['交通','美食','購物','景點'], datasets:[{ data:this.categoryTotals(), backgroundColor:['#a8d4ff','#56acee','#2e75ad','#7cc0ff'], borderColor:'#fff', borderWidth:2 }] }, options:{ plugins:{ legend:{ position:'bottom' } } } });
+        },
+        updateChart(){ if(this.chart){ this.chart.data.datasets[0].data=this.categoryTotals(); this.chart.update(); } },
+        categoryTotals(){ const m={'交通':0,'美食':0,'購物':0,'景點':0}; for(const x of this.budget.items){ if(m[x.category]!==undefined) m[x.category]+=x.hkd||0; } return [m['交通'],m['美食'],m['購物'],m['景點']]; },
+
+        // Quick add
+        openQuickAdd(area){ this.activeTab= area==='schedule'?'schedule' : area==='map'?'map' : area==='shop'?'shop' : 'info';
+          setTimeout(()=>{ const el=document.querySelector('input,select,textarea'); if(el) el.focus(); },50);
+        }
+      },
+
+      mounted(){
+        this.load();
+        this.$nextTick(()=>{ this.initChart(); this.updateChart(); });
+
+        // Auto-save
+        watch(()=>this.schedule,()=>this.save(),{deep:true});
+        watch(()=>this.map,()=>this.save(),{deep:true});
+        watch(()=>this.budget,()=>{ this.save(); this.updateChart(); },{deep:true});
+        watch(()=>this.shop,()=>this.save(),{deep:true});
+        watch(()=>this.pack,()=>this.save(),{deep:true});
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

@@ -7,7 +7,6 @@
   <meta name="theme-color" content="#0b1329"/>
   <title>Tokyo & Atami Trip 2026</title>
 
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -24,7 +23,6 @@
     }
   </script>
 
-  <!-- Vue 3, Chart.js, SheetJS (Excel exporter) -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -33,11 +31,11 @@
     :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
     html,body{height:100%}
     body{ background-color: #0b1329; -webkit-font-smoothing: antialiased; }
-    .bg-mount{position:fixed; inset:0; z-index:-1; opacity:.85;
+    .bg-mount{position:fixed; inset:0; z-index:-1; opacity:0.85;
       background-image:url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=1600&auto=format&fit=crop');
-      background-size:cover; background-position:center; filter:brightness(0.95) saturate(110%);}
+      background-size:cover; background-position:center; filter:brightness(0.9) saturate(125%);}
     .glass{background:rgba(255,255,255,.28); backdrop-filter:blur(16px) saturate(115%);}
-    .glass-dark{background:rgba(15, 23, 42, 0.55); backdrop-filter:blur(16px) saturate(120%); border: 1px solid rgba(255,255,255,0.15);}
+    .glass-dark{background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(16px) saturate(120%); border: 1px solid rgba(255,255,255,0.15);}
     .tag-title{display:inline-block; padding:.35rem .7rem; border-radius:.75rem; background:#fff; box-shadow:0 6px 14px rgba(0,0,0,.08);}
     .hide-scroll::-webkit-scrollbar{display:none} .hide-scroll{scrollbar-width:none}
     .safe-top{padding-top:var(--safe-top)} .safe-bottom{padding-bottom:var(--safe-bottom)}
@@ -48,7 +46,6 @@
   <div class="bg-mount"></div>
 
   <div id="app" class="min-h-screen flex flex-col">
-    <!-- Header -->
     <header class="safe-top">
       <div class="frame px-4 pt-2">
         <div class="flex items-center justify-between">
@@ -58,7 +55,6 @@
           </button>
         </div>
 
-        <!-- Day chips automatically referencing spreadsheet headings -->
         <div class="mt-3 flex items-center gap-2">
           <div class="flex-1 overflow-x-auto hide-scroll">
             <div class="flex gap-2 min-w-max">
@@ -75,12 +71,9 @@
       </div>
     </header>
 
-    <!-- Content -->
     <main class="flex-1 frame px-4 pb-32">
       
-      <!-- PAGE 1: SCHEDULE & LIVE WEATHER -->
       <section v-show="activeTab==='schedule'" class="mt-4 space-y-4">
-        <!-- Live Weather Dashboard Component -->
         <div class="glass-dark rounded-2xl text-white shadow-soft p-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -111,13 +104,11 @@
         </div>
       </section>
 
-      <!-- PAGE 2: MAP (Embedded Google Map List View) -->
       <section v-show="activeTab==='map'" class="mt-4 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">東京 / 熱海景點地圖集</div>
-        <div class="w-full rounded-2xl overflow-hidden shadow-soft border-2 border-white/20 h-[70vh] bg-gray-900">
-          <!-- Live interactive cross-linked responsive framework window map block -->
+        <div class="tag-title text-winter-900 text-sm font-bold">東京 / 熱海全行程景點全圖集</div>
+        <div class="w-full rounded-2xl overflow-hidden shadow-soft border-2 border-white/20 h-[68vh] bg-gray-900">
           <iframe 
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d104107.03746678284!2d139.0118534898144!3d35.09743132039572!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6019b8bd49f170ef%3A0x6b63ca52f9540b61!2sAtami%2C%20Shizuoka%2C%20Japan!5e0!3m2!1sen!2shk!4v1710000000000!5m2!1sen!2shk" 
+            src="https://maps.app.goo.gl/NvwjGcXQcf9kjf78A" 
             class="w-full h-full border-0" 
             allowfullscreen="" 
             loading="lazy" 
@@ -126,9 +117,8 @@
         </div>
       </section>
 
-      <!-- PAGE 3: BILLS & BUDGET TRACKING (Live Currency & Strict HKD Alignment) -->
       <section v-show="activeTab==='budget'" class="mt-4 space-y-4">
-        <div class="tag-title text-winter-900 text-sm font-bold">實時自動結算金流</div>
+        <div class="tag-title text-winter-900 text-sm font-bold">實時獨立結算金流 (已分流)</div>
         
         <div class="rounded-2xl p-4 shadow-soft glass-dark text-white space-y-3">
           <div class="flex items-center justify-between border-b border-white/20 pb-2">
@@ -175,10 +165,12 @@
               <div class="text-[10px] text-gray-500 font-mono">¥ {{ sp.jpy }}</div>
             </div>
           </div>
+          <div v-if="!budgetItems.length" class="text-sm text-white/90 bg-black/20 p-4 rounded-xl text-center">
+            📭 記帳分流表目前無帳目，請前往試算表 Expenses 頁籤記錄。
+          </div>
         </div>
       </section>
 
-      <!-- PAGE 4: EXCEL DATA EXPORTER SECTION -->
       <section v-show="activeTab==='info'" class="mt-4 space-y-4">
         <div class="tag-title text-winter-900 text-sm font-bold">行前數據備份中心</div>
         
@@ -196,7 +188,6 @@
       </section>
     </main>
 
-    <!-- Bottom Nav -->
     <footer class="safe-bottom fixed left-0 right-0 bottom-0 z-50">
       <div class="frame px-5 pb-3">
         <div class="glass rounded-pill shadow-soft px-2 py-2 grid grid-cols-4 items-center text-center">
@@ -221,7 +212,7 @@
           days: [], 
           schedule: { eventsByDate: {} },
           budgetItems: [],
-          currentFXRate: 0.0515, // High accuracy baseline tracker backup
+          currentFXRate: 0.0515, 
           weather: { temp: '--', desc: '讀取中...', icon: '🌤️' },
           chart: null
         }
@@ -261,20 +252,20 @@
             if (data && data.rates && data.rates.HKD) {
               this.currentFXRate = data.rates.HKD;
             }
-          } catch (e) { console.error("Currency API fallback active", e); }
+          } catch (e) { console.error("FX tracking exception. Local fallback safe.", e); }
         },
         async fetchLiveWeather() {
           try {
-            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true');
+            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.1018&longitude=139.0722&current_weather=true');
             const data = await res.json();
             if (data && data.current_weather) {
               this.weather.temp = Math.round(data.current_weather.temperature);
               const code = data.current_weather.weathercode;
               if (code === 0) { this.weather.desc = '晴空萬里'; this.weather.icon = '☀️'; }
-              else if (code <= 3) { this.weather.desc = '多雲偶微陰'; this.weather.icon = '⛅'; }
-              else { this.weather.desc = '局部陣雨'; this.weather.icon = '🌧️'; }
+              else if (code <= 3) { this.weather.desc = '多雲晴天'; this.weather.icon = '⛅'; }
+              else { this.weather.desc = '微陰/陣雨'; this.weather.icon = '🌧️'; }
             }
-          } catch(e) { this.weather.desc = '網絡常規天晴'; }
+          } catch(e) { this.weather.desc = '常規微陰'; }
         },
         async fetchGoogleSheetsSchedule() {
           const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Schedule`;
@@ -329,7 +320,7 @@
               if(!r || r.length < 2 || !r[0]) continue;
               
               const jpyAmt = parseFloat(r[1]) || 0;
-              const convertedHkd = jpyAmt * this.currentFXRate; // Precise calculations aligned
+              const convertedHkd = jpyAmt * this.currentFXRate; 
 
               tempItems.push({
                 id: crypto.randomUUID(),
@@ -347,7 +338,6 @@
         exportToExcelFormat() {
           const workbook = XLSX.utils.book_new();
           
-          // Sheet 1 processing: Flat Schedule log conversion
           const flatSchedule = [];
           Object.keys(this.schedule.eventsByDate).forEach(date => {
             this.schedule.eventsByDate[date].forEach(ev => {
@@ -357,7 +347,6 @@
           const wsSchedule = XLSX.utils.json_to_sheet(flatSchedule);
           XLSX.utils.book_append_sheet(workbook, wsSchedule, "行程日誌備份");
           
-          // Sheet 2 processing: Financial log ledger conversion
           const financialLedger = this.budgetItems.map(x => ({
             "支出項目項目": x.desc,
             "日幣金額 (JPY)": x.jpy,
@@ -369,7 +358,6 @@
           const wsExpenses = XLSX.utils.json_to_sheet(financialLedger);
           XLSX.utils.book_append_sheet(workbook, wsExpenses, "金流記帳明細");
           
-          // Fire file system generation download trigger
           XLSX.writeFile(workbook, `Tokyo_Trip_2026_Backup_Log.xlsx`);
         },
         initChart() {
